@@ -346,28 +346,12 @@ about += f"""
     <div>
       <p class="eyebrow">About the Studio</p>
       <h1>A practical approach to beautiful interiors.</h1>
+      <p class="byline">Co-founded by <strong>Yijian Gao</strong> and <strong>Jie Wu</strong>, principal designers.</p>
       <p class="lede">We are a residential furniture sourcing and styling studio focused on helping clients make better furnishing decisions.</p>
       <p class="lede">Our work sits at the intersection of design, research, and real-world usability.</p>
       <p>We believe a home does not need to be overly styled to feel considered. The right proportions, materials, colors, and functional choices can do most of the work.</p>
     </div>
     <div>{ph("oat", "Studio — interior detail", "portrait", "room", img="about-hero.jpg", page="About", desc="Considered interior corner: a chair, side table, lamp, and a plant", terms="interior corner armchair side table lamp")}</div>
-  </div>
-</section>
-
-<section class="section">
-  <div class="wrap">
-    <p class="eyebrow">Who We Are</p>
-    <h2>Led by two principal designers.</h2>
-    <div class="grid grid-2 mt-2">
-      <div class="point reveal">
-        <h3>Yijian Gao</h3>
-        <p>Co-Founder, Principal Designer</p>
-      </div>
-      <div class="point reveal">
-        <h3>Jie Wu</h3>
-        <p>Co-Founder, Principal Designer</p>
-      </div>
-    </div>
   </div>
 </section>
 

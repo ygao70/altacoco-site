@@ -90,7 +90,7 @@ def foot(depth=0):
       <div>
         <a class="brand" href="{p}index.html">AltaCoco <span>Home</span></a>
         <p>Residential Furniture Sourcing, Styling &amp; Procurement Support</p>
-        <p>522 W Riverside Ave, Ste N<br>Spokane, WA 99201-0581<br>Virtual services available across the United States</p>
+        <p>11415 115th Ave NE<br>Kirkland, WA 98033<br>Virtual services available across the United States</p>
         <a class="email" href="mailto:cs@altacoco.com">cs@altacoco.com</a>
       </div>
       <div>
@@ -338,7 +338,7 @@ write("index.html", home)
 
 # ---------------------------------------------------------------- ABOUT
 about = head("About the Studio | AltaCoco Home",
-             "AltaCoco Home is a residential furniture sourcing and styling studio based in Spokane, Washington, helping clients make better furnishing decisions.",
+             "AltaCoco Home is a residential furniture sourcing and styling studio based in Kirkland, Washington, helping clients make better furnishing decisions.",
              current="about.html")
 about += f"""
 <section class="page-hero">
@@ -406,8 +406,8 @@ about += f"""
     </div>
     <div class="reveal">
       <p class="eyebrow">Location</p>
-      <h3>Based in Spokane, Washington</h3>
-      <p class="lede">522 W Riverside Ave, Ste N<br>Spokane, WA 99201-0581</p>
+      <h3>Based in Kirkland, Washington</h3>
+      <p class="lede">11415 115th Ave NE<br>Kirkland, WA 98033</p>
       <p class="lede">Virtual furniture sourcing and design support available for clients across the United States.</p>
       <div class="mt-2">{ph("sage", "Pacific Northwest", "wide", "room", img="about-location.jpg", page="About", desc="Pacific Northwest landscape or a home exterior among evergreens", terms="pacific northwest home evergreen trees")}</div>
     </div>
@@ -765,7 +765,7 @@ contact += f"""
       </div>
       <div>
         <h3>Studio</h3>
-        <p>AltaCoco Home<br>522 W Riverside Ave, Ste N<br>Spokane, WA 99201-0581<br>Virtual services available across the United States</p>
+        <p>AltaCoco Home<br>11415 115th Ave NE<br>Kirkland, WA 98033<br>Virtual services available across the United States</p>
       </div>
       <div>
         <h3>Helpful to include</h3>

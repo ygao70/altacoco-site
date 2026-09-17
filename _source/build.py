@@ -354,6 +354,23 @@ about += f"""
   </div>
 </section>
 
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">Who We Are</p>
+    <h2>Led by two principal designers.</h2>
+    <div class="grid grid-2 mt-2">
+      <div class="point reveal">
+        <h3>Yijian Gao</h3>
+        <p>Co-Founder, Principal Designer</p>
+      </div>
+      <div class="point reveal">
+        <h3>Jie Wu</h3>
+        <p>Co-Founder, Principal Designer</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="section section--alt">
   <div class="wrap split split--reverse">
     <div>{ph("stone", "Scale & dimensions", "square", "sofa", img="about-scale.jpg", page="About", desc="Tape measure, floor plan sketch, or fabric samples on a table", terms="interior design tape measure floor plan samples")}</div>

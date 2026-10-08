@@ -1,0 +1,16 @@
+{
+  "name": "AltaCoco Scan Station",
+  "short_name": "Scan Station",
+  "description": "Fast package receiving and serial tracking.",
+  "start_url": "/trade/",
+  "scope": "/trade/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1F1B16",
+  "theme_color": "#1F1B16",
+  "icons": [
+    { "src": "/trade/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/trade/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/trade/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

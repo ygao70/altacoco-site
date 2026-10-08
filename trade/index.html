@@ -1,0 +1,1600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Private tool: not linked from the site, kept out of search engines. -->
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Scan Station">
+<meta name="theme-color" content="#1F1B16">
+<link rel="manifest" href="/trade/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/trade/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="/trade/icon-192.png">
+<title>Scan Station</title>
+<style>
+:root{
+  --bg:#FAF7F2; --card:#FFFFFF; --ink:#1F1B16; --muted:#6B635A; --line:#E4DCD0;
+  --clay:#B5643C; --serial:#24406B;
+  --ok:#1B7F3B; --err:#C62828; --warn:#B26A00; --warn-bg:#FFF4E0; --err-bg:#FDECEA; --ok-bg:#E7F4EA;
+  --nav-h:62px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);-webkit-text-size-adjust:100%}
+body{font:16px/1.4 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);-webkit-tap-highlight-color:transparent}
+button{font:inherit;cursor:pointer}
+.mono{font-family:var(--mono);word-break:break-all}
+.label{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+/* top bar */
+header.top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-weight:800;letter-spacing:.02em;font-size:17px}
+.brand small{display:block;font-weight:400;opacity:.6;font-size:12px;letter-spacing:0}
+.dot{font-size:12px;text-align:right;white-space:nowrap;opacity:.85}
+.dot.cloud-synced{color:#9FD8AE}.dot.cloud-waiting,.dot.cloud-syncing{color:#F3D58A}
+.dot.cloud-offline,.dot.cloud-signed-out{color:#F3B98A}.dot.cloud-error{color:#FF9C9C;font-weight:700}
+.field{width:100%;font-size:17px;padding:12px;border:2px solid var(--line);border-radius:10px;margin:4px 0 8px;background:#fff;color:var(--ink)}
+.field:focus{border-color:var(--ink);outline:none}
+.cloud-err{color:var(--err);font-size:14px;font-weight:700;margin:4px 0}
+.linkbtn{appearance:none;border:0;background:none;color:var(--clay);font-weight:700;padding:6px 0;font-size:14px}
+main{max-width:560px;margin:0 auto;padding:14px 16px}
+.view{display:none}.view.on{display:block}
+
+/* package card */
+.pkg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.pkg .trk{font-family:var(--mono);font-size:19px;font-weight:700;word-break:break-all;line-height:1.2;margin-top:2px}
+.pkg .carrier{font-size:13px;color:var(--muted);margin-top:2px}
+.pkg .count{text-align:right;flex:none}
+.pkg .count b{display:block;font-size:34px;line-height:1}
+.pkg.none{color:var(--muted)}
+
+/* prompt panel */
+.prompt{margin-top:12px;border-radius:18px;padding:26px 16px;text-align:center;color:#fff;background:var(--ink);
+  min-height:210px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;transition:background-color .12s}
+.prompt.s-trk{background:var(--clay)}
+.prompt.s-asin{background:var(--ink)}
+.prompt.s-serial{background:var(--serial)}
+.prompt.ok{background:var(--ok)}
+.prompt.err{background:var(--err)}
+.prompt.warn{background:var(--warn)}
+.prompt .big{font-size:clamp(32px,10vw,50px);font-weight:900;letter-spacing:.01em;line-height:1.05}
+.prompt .sub{font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.75}
+.prompt .asin{font-family:var(--mono);font-size:26px;font-weight:700;margin:0 0 10px}
+.prompt .or{font-size:13px;opacity:.75;margin-top:8px;letter-spacing:.04em}
+.prompt .fl{font-size:16px;opacity:.95;max-width:100%;word-break:break-word}
+.prompt .fl.mono{font-size:18px}
+.prompt .next{margin-top:12px;font-size:13px;letter-spacing:.1em;text-transform:uppercase;background:rgba(0,0,0,.2);padding:6px 10px;border-radius:999px}
+
+.last{margin-top:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.last .row{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:15px;margin-top:3px}
+.last .row .ok{color:var(--ok);font-weight:800;font-family:inherit}
+
+/* buttons */
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.btn{appearance:none;border:2px solid var(--ink);background:var(--card);color:var(--ink);border-radius:12px;min-height:54px;padding:8px 10px;
+  font-size:15px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.serial{background:var(--serial);border-color:var(--serial);color:#fff}
+.btn.full{grid-column:1/-1}
+.btn.ghost{border-color:var(--line);color:var(--muted);font-weight:700;min-height:46px}
+.btn.danger{border-color:var(--err);color:var(--err)}
+.btn.danger.solid{background:var(--err);color:#fff}
+.btn.small{min-height:40px;font-size:13px}
+
+.backup-hint{appearance:none;display:block;width:100%;margin-top:8px;text-align:left;background:var(--warn-bg);color:var(--warn);border:1px solid #F0D9A8;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700}
+.recent{margin-top:14px}
+.recent ol{list-style:none;margin:6px 0 0;padding:0}
+.recent li{display:flex;justify-content:space-between;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:14px}
+.recent li span:last-child{color:var(--muted)}
+.ns{color:var(--muted);font-style:italic;font-family:inherit}
+
+/* review / detail */
+.detail h2{margin:4px 0 2px;font-size:13px}
+.detail .trk{font-family:var(--mono);font-size:21px;font-weight:800;word-break:break-all}
+.detail .meta{color:var(--muted);font-size:14px;margin:4px 0 12px}
+.badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.1em;padding:2px 8px;border-radius:999px;vertical-align:middle}
+.badge.OPEN{background:var(--warn-bg);color:var(--warn)}
+.badge.FINISHED{background:var(--ok-bg);color:var(--ok)}
+.total{display:flex;justify-content:space-between;align-items:baseline;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.total b{font-size:30px}
+.grp{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:8px;overflow:hidden}
+.grp summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;cursor:pointer}
+.grp summary::-webkit-details-marker{display:none}
+.grp summary .a{font-family:var(--mono);font-weight:800;font-size:17px}
+.grp summary .q{font-size:13px;color:var(--muted);text-align:right}
+.grp summary .q b{color:var(--ink);font-size:16px}
+.grp ul{list-style:none;margin:0;padding:0 14px 8px;border-top:1px solid var(--line)}
+.grp li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.grp li:last-child{border-bottom:0}
+.grp li .s{flex:1;font-family:var(--mono);word-break:break-all}
+.grp li .t{color:var(--muted);font-size:12px;white-space:nowrap}
+.x{appearance:none;border:1px solid var(--line);background:none;color:var(--err);border-radius:8px;padding:5px 8px;font-size:12px;font-weight:700}
+.back{appearance:none;border:0;background:none;color:var(--clay);font-weight:800;padding:4px 0 10px;font-size:15px}
+.empty{color:var(--muted);text-align:center;padding:24px 0}
+
+/* lists */
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px}
+.chip{appearance:none;border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:700;font-size:14px;white-space:nowrap;color:var(--ink)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.plist{list-style:none;margin:0;padding:0}
+.plist li{margin-bottom:8px}
+.pcard{appearance:none;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;gap:12px;color:var(--ink)}
+.pcard .tn{font-family:var(--mono);font-weight:800;font-size:16px;word-break:break-all}
+.pcard .sm{font-size:13px;color:var(--muted);margin-top:2px}
+.pcard .rt{text-align:right;flex:none;font-size:13px;color:var(--muted)}
+.pcard .rt b{display:block;font-size:20px;color:var(--ink)}
+.day{margin:14px 0 6px}
+
+/* search */
+.sbox{display:flex;gap:8px}
+.sbox input{flex:1;min-width:0;font-size:18px;padding:14px;border:2px solid var(--ink);border-radius:12px;background:#fff;color:var(--ink);font-family:var(--mono)}
+.sbox .btn{min-height:auto}
+.hint{color:var(--muted);font-size:13px;margin:8px 0 0}
+.res{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
+.res dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:6px 0 0}
+.res dt{color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding-top:2px}
+.res dd{margin:0;font-family:var(--mono);word-break:break-all}
+.res .lines{font-family:var(--mono);margin-top:6px}
+.linkish{appearance:none;border:0;background:none;padding:0;color:var(--clay);font-weight:800;font-family:var(--mono);text-align:left;word-break:break-all;font-size:inherit}
+h3.sec{margin:20px 0 4px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+/* settings */
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:17px;margin:0 0 8px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:15px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:700}
+.test{border:2px dashed var(--line);border-radius:12px;padding:14px;text-align:center;margin-top:10px}
+.test.ok{border-color:var(--ok);background:var(--ok-bg)}
+.test .v{font-family:var(--mono);font-size:20px;font-weight:800;word-break:break-all;margin:6px 0}
+.toggle{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.toggle:last-child{border-bottom:0}
+.toggle input{width:24px;height:24px;accent-color:var(--ink)}
+.toggle small{display:block;color:var(--muted);font-size:13px}
+.ctl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.ctl{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+.ctl b{font-size:13px;letter-spacing:.06em}
+.ctl svg{display:block;width:100%;height:46px;margin:6px 0 2px}
+.ctl span{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.note{font-size:14px;color:var(--muted)}
+.note b{color:var(--ink)}
+
+/* tabs */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:#fff;border-top:1px solid var(--line);
+  display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{appearance:none;border:0;background:none;height:var(--nav-h);font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--muted)}
+nav.tabs button.on{color:var(--ink);box-shadow:inset 0 3px 0 var(--clay)}
+
+/* modal */
+.modal{position:fixed;inset:0;z-index:20;background:rgba(20,16,12,.55);display:none;align-items:flex-end;justify-content:center;padding:12px}
+.modal.open{display:flex}
+.sheet{background:#fff;color:var(--ink);border-radius:20px;width:100%;max-width:520px;max-height:90vh;overflow:auto;
+  padding:18px 18px calc(16px + env(safe-area-inset-bottom));border-top:12px solid var(--warn)}
+.sheet.err{border-top-color:var(--err)}
+.sheet.err h2{color:var(--err)}
+.sheet.info{border-top-color:var(--ink)}
+.sheet h2{margin:0 0 10px;font-size:24px;line-height:1.15}
+.sheet p{margin:6px 0}
+.sheet .big2{font-family:var(--mono);font-size:22px;font-weight:800;word-break:break-all}
+.sheet dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:8px 0}
+.sheet dt{color:var(--muted);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;padding-top:2px}
+.sheet dd{margin:0;font-family:var(--mono);word-break:break-all}
+.sheet .hint{text-align:center}
+.sheet input.manual{width:100%;font-size:20px;padding:14px;border:2px solid var(--ink);border-radius:12px;font-family:var(--mono);margin:6px 0}
+
+/* start gate */
+#gate{position:fixed;inset:0;z-index:30;background:var(--ink);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:10px}
+#gate.hide{display:none}
+#gate .g1{font-size:13px;letter-spacing:.2em;text-transform:uppercase;opacity:.6}
+#gate .g2{font-size:34px;font-weight:900;line-height:1.1}
+#gate .g3{opacity:.7;max-width:300px}
+#gate button{margin-top:18px;appearance:none;border:0;background:var(--clay);color:#fff;font-weight:900;font-size:18px;letter-spacing:.08em;padding:18px 34px;border-radius:14px}
+
+/* the always-focused scanner field: present but invisible */
+#scan-input{position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:0;padding:0;font-size:16px;pointer-events:none;caret-color:transparent}
+
+/* printable control sheet */
+#print-sheet{display:none}
+@media print{
+  @page{margin:12mm}
+  body{background:#fff;padding:0}
+  body > *:not(#print-sheet){display:none !important}
+  #print-sheet{display:block;color:#000;font-family:-apple-system,Helvetica,Arial,sans-serif}
+  #print-sheet h1{font-size:20pt;margin:0 0 2mm}
+  #print-sheet p{margin:0 0 6mm;font-size:10pt}
+  .ps-grid{display:grid;grid-template-columns:1fr 1fr;gap:8mm}
+  .ps{border:0.4mm solid #000;border-radius:3mm;padding:5mm;text-align:center;break-inside:avoid}
+  .ps b{display:block;font-size:20pt;letter-spacing:.04em;margin-bottom:3mm}
+  .ps svg{width:100%;height:22mm;display:block}
+  .ps span{display:block;font-family:Menlo,Consolas,monospace;font-size:10pt;margin-top:2mm}
+}
+</style>
+</head>
+<body>
+
+<input id="scan-input" type="text" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Scanner input" enterkeyhint="done">
+
+<div id="gate">
+  <div class="g1">AltaCoco</div>
+  <div class="g2">Scan Station</div>
+  <div class="g3">Fast package receiving and serial tracking.</div>
+  <button type="button" id="gate-btn">TAP TO START</button>
+</div>
+
+<header class="top">
+  <div class="brand">AltaCoco Scan Station<small>Scanner-first, touch-second</small></div>
+  <div class="dot" id="hdr-status"></div>
+</header>
+
+<main>
+  <section class="view on" id="v-scan" aria-live="polite"></section>
+  <section class="view" id="v-packages"></section>
+  <section class="view" id="v-search">
+    <form class="sbox" id="search-form" autocomplete="off">
+      <input id="q" type="search" placeholder="Tracking / ASIN / Serial" autocapitalize="characters" autocorrect="off" spellcheck="false">
+      <button class="btn primary" type="submit">Go</button>
+    </form>
+    <p class="hint">Scan into this page or type. Exact matches first, then partial matches.</p>
+    <div id="results"></div>
+  </section>
+  <section class="view" id="v-settings"></section>
+</main>
+
+<nav class="tabs" id="tabs">
+  <button type="button" data-tab="scan" class="on">SCAN</button>
+  <button type="button" data-tab="packages">PACKAGES</button>
+  <button type="button" data-tab="search">SEARCH</button>
+  <button type="button" data-tab="settings">SETTINGS</button>
+</nav>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true"><div class="sheet" id="sheet"></div></div>
+
+<div id="print-sheet"></div>
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+
+<script src="/trade/firebase-config.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ---------------- utilities ---------------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = p => p + '_' + ((self.crypto && crypto.randomUUID) ? crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+  : Math.random().toString(36).slice(2, 10) + Date.now().toString(36));
+const nowISO = () => new Date().toISOString();
+const pad = n => String(n).padStart(2, '0');
+const fmt = iso => { if (!iso) return ''; const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) : '';
+const dayKey = iso => { const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+const prefs = (() => { const p = {sound: true, fastUndo: false};
+  try { Object.assign(p, JSON.parse(localStorage.getItem('scanstation.prefs') || '{}')); } catch (e) {}
+  return p; })();
+const savePrefs = () => { try { localStorage.setItem('scanstation.prefs', JSON.stringify(prefs)); } catch (e) {} };
+const deviceId = (() => { try { let d = localStorage.getItem('scanstation.device');
+  if (!d) { d = uid('dev'); localStorage.setItem('scanstation.device', d); } return d; } catch (e) { return 'dev_unknown'; } })();
+
+/* ---------------- storage (IndexedDB, on this device) ---------------- */
+const serialKey = s => s == null ? null : String(s).toUpperCase();   // duplicate check ignores letter case
+const DB = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('altacoco-scan-station', 3);
+    r.onupgradeneeded = e => {
+      const d = r.result, tx = r.transaction;
+      if (e.oldVersion < 1) {
+        const p = d.createObjectStore('packages', {keyPath: 'id'});
+        p.createIndex('tracking', 'tracking_number', {unique: true});
+        const i = d.createObjectStore('items', {keyPath: 'id'});
+        i.createIndex('package', 'package_id');
+        i.createIndex('serial', 'serial');   // null serials are simply not indexed
+        i.createIndex('asin', 'asin');
+        d.createObjectStore('events', {keyPath: 'id'});
+      }
+      if (e.oldVersion < 2) {
+        const i = tx.objectStore('items');
+        i.createIndex('serial_norm', 'serial_norm');
+        i.openCursor().onsuccess = ev => {
+          const c = ev.target.result; if (!c) return;
+          if (c.value.serial != null && c.value.serial_norm == null) c.update({...c.value, serial_norm: serialKey(c.value.serial)});
+          c.continue();
+        };
+      }
+      if (e.oldVersion < 3) {
+        // Changes waiting to be uploaded to the cloud: one entry per record ("packages/pkg_x"), latest change wins.
+        d.createObjectStore('outbox', {keyPath: 'k'});
+      }
+    };
+    r.onsuccess = () => {
+      const d = r.result;
+      d.onclose = () => { dbp = null; };              // iOS can drop the connection; reopen on next use
+      d.onversionchange = () => { d.close(); dbp = null; };
+      res(d);
+    };
+    r.onerror = () => { dbp = null; rej(r.error); };
+  }));
+  const wrap = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const isLost = err => err && (err.name === 'InvalidStateError' || err.name === 'UnknownError' || /connection|closing/i.test(err.message || ''));
+  // Run one request; if WebKit lost the database connection, reopen once and retry.
+  async function run(name, mode, fn) {
+    for (let attempt = 0; ; attempt++) {
+      try { return await wrap(fn((await open()).transaction(name, mode).objectStore(name))); }
+      catch (err) { if (attempt === 0 && isLost(err)) { dbp = null; continue; } throw err; }
+    }
+  }
+  // Several writes in one transaction; resolves when it has committed.
+  async function write(stores, fn) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const d = await open();
+        return await new Promise((res, rej) => {
+          const t = d.transaction(stores, 'readwrite');
+          fn(t);
+          t.oncomplete = () => res();
+          t.onerror = () => rej(t.error);
+          t.onabort = () => rej(t.error || new Error('Database write aborted'));
+        });
+      } catch (err) { if (attempt === 0 && isLost(err)) { dbp = null; continue; } throw err; }
+    }
+  }
+  const SYNCED = new Set(['packages', 'items', 'events']);
+  let seq = 0;
+  const mark = (t, s, id, op) => t.objectStore('outbox').put({k: s + '/' + id, coll: s, id, op, at: Date.now() + '.' + (++seq)});
+  const changed = () => { try { Cloud.changed(); } catch (e) {} };
+  return {
+    get: (s, k) => run(s, 'readonly', o => o.get(k)),
+    // put/del on packages, items and events also queue the change for cloud upload (same transaction).
+    put: (s, v) => SYNCED.has(s)
+      ? write([s, 'outbox'], t => { t.objectStore(s).put(v); mark(t, s, v.id, 'set'); }).then(changed)
+      : run(s, 'readwrite', o => o.put(v)),
+    del: (s, k) => SYNCED.has(s)
+      ? write([s, 'outbox'], t => { t.objectStore(s).delete(k); mark(t, s, k, 'delete'); }).then(changed)
+      : run(s, 'readwrite', o => o.delete(k)),
+    // Raw versions: used when applying data that came *from* the cloud (must not be re-uploaded).
+    putRaw: (s, v) => run(s, 'readwrite', o => o.put(v)),
+    delRaw: (s, k) => run(s, 'readwrite', o => o.delete(k)),
+    all: s => run(s, 'readonly', o => o.getAll()),
+    by: (s, idx, k) => run(s, 'readonly', o => o.index(idx).getAll(k)),
+    count: s => run(s, 'readonly', o => o.count()),
+    clear: s => run(s, 'readwrite', o => o.clear()),
+    // Remove uploaded outbox entries, unless the record changed again meanwhile.
+    outboxDone: ops => write(['outbox'], t => {
+      const ob = t.objectStore('outbox');
+      for (const o of ops) ob.get(o.k).onsuccess = ev => { const cur = ev.target.result; if (cur && cur.at === o.at) ob.delete(o.k); };
+    }),
+    // Queue every local record for upload (first sign-in on this device).
+    markAll: async () => {
+      for (const s of SYNCED) {
+        const rows = await run(s, 'readonly', o => o.getAllKeys());
+        await write(['outbox'], t => rows.forEach(id => mark(t, s, id, 'set')));
+      }
+    },
+  };
+})();
+
+/* ---------------- cloud sync (Firebase) ----------------
+   Local-first: every scan is saved on the phone immediately (IndexedDB) and queued in the outbox.
+   When signed in and online, the outbox is uploaded to Firestore under users/{uid}/..., and changes
+   made on other devices are pulled down. Scanning never waits for the network. */
+const Cloud = (() => {
+  const cfg = window.SCAN_STATION_FIREBASE || null;
+  const C = {enabled: !!(cfg && cfg.apiKey && cfg.projectId), user: null, ready: false,
+             status: 'off', pending: 0, lastSync: null, error: null, busy: false};
+  let fb = null, auth = null, db = null, again = false, againPull = false, timer = null, loading = null, wantPull = false, lastPull = 0;
+  const PULL_EVERY = 5 * 60 * 1000;   // downloads (reads) are rationed: on open, on return to the app, every 5 min, or "Sync now"
+  const LS = k => 'scanstation.cloud.' + k;
+  const lsGet = k => { try { return localStorage.getItem(LS(k)); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(LS(k)) : localStorage.setItem(LS(k), v); } catch (e) {} };
+  const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + ' timed out')), ms))]);
+  const base = () => `users/${C.user.uid}`;
+
+  async function load() {
+    if (!C.enabled) return;
+    if (loading) return loading;
+    loading = (async () => {
+      fb = await import('/trade/firebase-bundle.js');
+      const app = fb.initializeApp(cfg);
+      auth = fb.initializeAuth(app, {persistence: [fb.indexedDBLocalPersistence, fb.browserLocalPersistence]});
+      db = fb.initializeFirestore(app, {ignoreUndefinedProperties: true});
+      fb.onAuthStateChanged(auth, async u => {
+        C.user = u ? {uid: u.uid, email: u.email} : null;
+        C.ready = true;
+        if (u && lsGet('uid') !== u.uid) {
+          // First sign-in on this device (or a different account): upload everything that's here,
+          // and download everything from the cloud.
+          await DB.markAll();
+          lsSet('uid', u.uid);
+          ['packages', 'items', 'deletions', 'events'].forEach(c => lsSet('cursor.' + c, null));
+        }
+        await refreshPending();
+        if (u) kick(0, true); else setStatus();
+      });
+    })().catch(err => { loading = null; C.error = 'Could not load cloud library (offline?)'; setStatus('offline'); throw err; });
+    return loading;
+  }
+
+  function setStatus(st) {
+    C.status = st || (!C.enabled ? 'off' : !C.ready ? 'loading' : !C.user ? 'signed-out' : C.busy ? 'syncing'
+      : !navigator.onLine ? 'offline' : C.error ? 'error' : C.pending ? 'waiting' : 'synced');
+    try { renderCloudStatus(); } catch (e) {}
+  }
+  async function refreshPending() { try { C.pending = await DB.count('outbox'); } catch (e) {} setStatus(); }
+
+  // Uploads happen shortly after every change (a few seconds' pause lets bursts of scans share one batch).
+  function kick(delay = 2500, pullToo = false) {
+    if (!C.enabled) return;
+    if (pullToo) wantPull = true;
+    clearTimeout(timer);
+    timer = setTimeout(() => { sync({pull: wantPull}).catch(() => {}); }, delay);
+  }
+  // Remove values Firestore can't store and our local-only fields.
+  const toCloud = rec => JSON.parse(JSON.stringify(rec));
+  const fromCloud = data => { const o = {...data}; delete o.sync_at; return o; };
+
+  async function push() {
+    for (let round = 0; round < 50; round++) {
+      const ops = (await DB.all('outbox')).slice(0, 200);
+      if (!ops.length) return;
+      const batch = fb.writeBatch(db);
+      for (const o of ops) {
+        const ref = fb.doc(db, `${base()}/${o.coll}/${o.id}`);
+        const rec = o.op === 'set' ? await DB.get(o.coll, o.id) : null;
+        if (rec) batch.set(ref, {...toCloud(rec), sync_at: fb.serverTimestamp()});
+        else {
+          batch.delete(ref);
+          if (o.coll === 'items')   // tell other devices this item was removed
+            batch.set(fb.doc(db, `${base()}/deletions/${o.id}`), {item_id: o.id, deleted_at: nowISO(), device_id: deviceId, sync_at: fb.serverTimestamp()});
+        }
+      }
+      await withTimeout(batch.commit(), 30000, 'Upload');
+      await DB.outboxDone(ops);
+      await refreshPending();
+    }
+  }
+
+  async function pullColl(coll, apply) {
+    const key = 'cursor.' + coll;
+    const cursor = Number(lsGet(key) || 0);
+    // Re-read a few seconds back: server timestamps from another device can land slightly out of order.
+    const since = fb.Timestamp.fromMillis(Math.max(0, cursor - 5000));
+    let last = null, max = cursor, changed = 0;
+    for (let page = 0; page < 200; page++) {
+      const parts = [fb.collection(db, `${base()}/${coll}`), fb.where('sync_at', '>', since), fb.orderBy('sync_at')];
+      if (last) parts.push(fb.startAfter(last));
+      parts.push(fb.limit(300));
+      const snap = await withTimeout(fb.getDocsFromServer(fb.query(...parts)), 30000, 'Download');
+      for (const d of snap.docs) {
+        const data = d.data();
+        const t = data.sync_at && data.sync_at.toMillis ? data.sync_at.toMillis() : 0;
+        if (t > max) max = t;
+        if (await apply(d.id, fromCloud(data))) changed++;
+      }
+      if (snap.docs.length < 300) break;
+      last = snap.docs[snap.docs.length - 1];
+    }
+    lsSet(key, String(max));
+    return changed;
+  }
+
+  async function pull() {
+    const removed = new Set((await DB.all('events')).filter(e => e.removed_item && e.removed_item.id).map(e => e.removed_item.id));
+    let n = 0;
+    n += await pullColl('packages', async (id, p) => {
+      const local = await DB.get('packages', id);
+      if (local) {
+        if ((p.updated_at || '') > (local.updated_at || '')) {
+          await DB.putRaw('packages', p);
+          if (S.pkg && S.pkg.id === id) { if (p.status !== 'OPEN') { S.pkg = null; S.items = []; S.pendingAsin = null; S.state = 'WAITING_FOR_TRACKING'; saveSession(); } else S.pkg = p; }
+          return true;
+        }
+        return false;
+      }
+      if ((await DB.by('packages', 'tracking', p.tracking_number)).length) return false;   // same tracking opened on two devices: keep this one
+      await DB.putRaw('packages', p); return true;
+    });
+    n += await pullColl('items', async (id, it) => {
+      if (removed.has(id) || await DB.get('items', id)) return false;
+      let pkg = await DB.get('packages', it.package_id);
+      if (!pkg && it.tracking_number) pkg = (await DB.by('packages', 'tracking', it.tracking_number))[0];
+      if (!pkg) return false;
+      await DB.putRaw('items', {...it, package_id: pkg.id, serial_norm: serialKey(it.serial)});
+      return true;
+    });
+    n += await pullColl('deletions', async id => {
+      if (!(await DB.get('items', id))) return false;
+      await DB.delRaw('items', id); return true;
+    });
+    await pullColl('events', async (id, e) => { if (await DB.get('events', id)) return false; await DB.putRaw('events', e); return false; });
+    if (n) {
+      if (S.pkg) S.items = await loadItems(S.pkg.id);
+      try { await refreshCounts(); if (S.tab !== 'scan') rerender(); } catch (e) {}
+    }
+  }
+
+  async function sync({pull: doPull = false} = {}) {
+    if (!C.enabled || !C.user || !fb) return;
+    if (doPull) wantPull = true;
+    if (C.busy) { again = true; return; }
+    if (!navigator.onLine) { setStatus(); return; }
+    C.busy = true; again = false; setStatus();
+    try {
+      await push();
+      if (wantPull || Date.now() - lastPull > PULL_EVERY) { wantPull = false; await pull(); lastPull = Date.now(); }
+      C.error = null; C.lastSync = new Date();
+      lsSet('lastSync', C.lastSync.toISOString());
+    } catch (err) {
+      console.warn('sync failed', err);
+      C.error = (err && (err.code || err.message)) || String(err);
+      if (/permission/i.test(C.error)) C.error = 'Permission denied — check the Firestore rules.';
+    } finally {
+      C.busy = false;
+      await refreshPending();
+      if (again) kick(500);
+    }
+  }
+
+  async function signIn(email, password) {
+    await load();
+    await fb.signInWithEmailAndPassword(auth, email.trim(), password);
+  }
+  async function signOutNow() { if (auth) await fb.signOut(auth); C.user = null; setStatus(); }
+  async function resetPassword(email) { await load(); await fb.sendPasswordResetEmail(auth, email.trim()); }
+  function forgetDevice() { ['uid', 'lastSync', 'cursor.packages', 'cursor.items', 'cursor.deletions', 'cursor.events'].forEach(k => lsSet(k, null)); }
+
+  window.addEventListener('online', () => { setStatus(); kick(300, true); });
+  window.addEventListener('offline', () => setStatus());
+  setInterval(() => { if (C.user && (C.pending || Date.now() - lastPull > PULL_EVERY)) kick(0); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && C.user) kick(300, true); });
+  try { const ls = lsGet('lastSync'); if (ls) C.lastSync = new Date(ls); } catch (e) {}
+
+  return Object.assign(C, {
+    load, sync, kick, signIn, signOut: signOutNow, resetPassword, forgetDevice, refreshPending,
+    changed() { C.pending++; setStatus(); kick(); },
+  });
+})();
+
+function cloudKey() {
+  const C = Cloud;
+  return !C.enabled ? 'off' : !C.ready ? 'loading:' + (C.error || '') : !C.user ? 'form'
+    : [C.user.uid, C.status, C.pending, C.lastSync ? C.lastSync.getTime() : 0, C.error || ''].join('|');
+}
+function cloudLabel() {
+  const C = Cloud;
+  switch (C.status) {
+    case 'off': return '';
+    case 'loading': return '☁ …';
+    case 'signed-out': return '☁ Sign in to sync';
+    case 'syncing': return `☁ Syncing${C.pending ? ' · ' + C.pending + ' waiting' : ''}`;
+    case 'offline': return `☁ Offline${C.pending ? ' · ' + C.pending + ' waiting' : ''}`;
+    case 'error': return `☁ Sync problem${C.pending ? ' · ' + C.pending + ' waiting' : ''}`;
+    case 'waiting': return `☁ ${C.pending} waiting to upload`;
+    default: return '☁ All synced';
+  }
+}
+function renderCloudStatus() {
+  const el = $('#hdr-status');
+  if (!el) return;
+  el.textContent = cloudLabel();
+  el.className = 'dot cloud-' + Cloud.status;
+  // Refresh the Settings card only when what it shows changed (don't wipe a half-typed sign-in form).
+  const c = S.tab === 'settings' && $('#cloud-card');
+  if (c && !otherFieldActive() && c.dataset.key !== cloudKey()) { c.innerHTML = cloudCardHTML(); c.dataset.key = cloudKey(); }
+}
+
+/* ---------------- app state ---------------- */
+const S = {
+  tab: 'scan',
+  state: 'WAITING_FOR_TRACKING',   // WAITING_FOR_TRACKING | WAITING_FOR_ASIN | WAITING_FOR_SERIAL | PACKAGE_REVIEW
+  pkg: null, items: [], pendingAsin: null,
+  lastSaved: null, lastFinished: null,
+  flash: null, confirm: null,
+  pf: 'today', detail: null,
+};
+
+function logEvent(type, raw, result, extra) {
+  DB.put('events', {id: uid('evt'), package_id: S.pkg ? S.pkg.id : null, raw_value: raw ?? null,
+    event_type: type, result, created_at: nowISO(), device_id: deviceId, ...(extra || {})}).catch(() => {});
+}
+function saveSession() {
+  try { localStorage.setItem('scanstation.session', JSON.stringify({pkg: S.pkg ? S.pkg.id : null, pendingAsin: S.pendingAsin})); } catch (e) {}
+}
+async function restoreSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem('scanstation.session') || 'null');
+    if (!s || !s.pkg) return;
+    const p = await DB.get('packages', s.pkg);
+    if (p && p.status === 'OPEN') {
+      S.pkg = p; S.items = await loadItems(p.id); S.pendingAsin = s.pendingAsin || null;
+      S.state = S.pendingAsin ? 'WAITING_FOR_SERIAL' : 'WAITING_FOR_ASIN';
+    }
+  } catch (e) {}
+}
+async function loadItems(pid) {
+  const it = await DB.by('items', 'package', pid);
+  return it.sort((a, b) => a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0);
+}
+
+/* ---------------- sound + vibration ---------------- */
+let actx = null;
+function unlockAudio() {
+  try { if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) actx = new AC(); }
+    if (actx && actx.state !== 'running') actx.resume(); } catch (e) {}   // 'suspended' or iOS 'interrupted'
+}
+function tone(freq, dur, when = 0, type = 'square', vol = 0.07) {
+  if (!actx) return;
+  const t = actx.currentTime + when, o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const SOUNDS = {
+  ok()   { tone(1760, .09); },
+  tick() { tone(1320, .05, 0, 'square', .04); },
+  warn() { tone(700, .1, 0, 'triangle', .09); tone(940, .1, .13, 'triangle', .09); },
+  err()  { tone(240, .15, 0, 'sawtooth', .09); tone(240, .15, .22, 'sawtooth', .09); },
+  dup()  { for (let k = 0; k < 4; k++) { tone(980, .12, k * .27, 'square', .1); tone(600, .12, k * .27 + .135, 'square', .1); } },
+  done() { [988, 1319, 1568, 1976].forEach((f, k) => tone(f, .13, k * .1, 'triangle', .1)); },
+  test() { tone(520, .08, 0, 'sine', .1); tone(520, .08, .12, 'sine', .1); },   // deliberately unlike "saved"
+};
+const VIBES = {ok: 30, tick: 20, test: [20, 60, 20], warn: [80, 50, 80], err: [150, 70, 150], dup: [300, 100, 300, 100, 300], done: [60, 40, 60, 40, 120]};
+function feedback(kind) {
+  if (prefs.sound && actx) { try { if (actx.state !== 'running') actx.resume(); SOUNDS[kind](); } catch (e) {} }
+  try { if (navigator.vibrate) navigator.vibrate(VIBES[kind]); } catch (e) {}
+}
+
+/* ---------------- scan normalisation + recognisers ---------------- */
+// NFKC turns full-width characters (e.g. "：" from a Chinese input method) back into plain ASCII.
+const clean = raw => String(raw ?? '').normalize('NFKC').replace(/[\x00-\x1F\x7F]/g, '').trim();
+const nonAscii = v => /[^\x20-\x7E]/.test(v);
+function normTracking(v) {
+  let t = v.replace(/\s+/g, '').toUpperCase();
+  // USPS label barcodes carry "420" + destination ZIP in front of the tracking number.
+  const m = t.match(/^420\d{5}(?:\d{4})?(9\d{19,21})$/);
+  if (m) t = m[1];
+  return t;
+}
+const isAsin = v => /^[A-Z0-9]{10}$/.test(v);
+const looksLikeAsin = v => /^B0[A-Z0-9]{8}$/.test(v);
+function looksLikeTracking(v) {
+  const t = normTracking(v);
+  return /^1Z[0-9A-Z]{16}$/.test(t) || /^TBA\d{9,15}$/.test(t) || /^9[2-5]\d{18,20}$/.test(t);
+}
+function carrierOf(t) {
+  if (/^1Z/.test(t)) return 'UPS';
+  if (/^TBA/.test(t)) return 'Amazon Logistics';
+  if (/^\d{20,22}$/.test(t)) return 'USPS (possible)';
+  if (/^\d{12,15}$/.test(t)) return 'FedEx (possible)';
+  return '';
+}
+
+/* ---------------- flash + modal ---------------- */
+let flashTimer = null;
+function flash(tone, title, lines, ms) {
+  S.flash = {tone, title, lines: (lines || []).filter(Boolean)};
+  clearTimeout(flashTimer);
+  if (ms) flashTimer = setTimeout(() => { S.flash = null; if (S.tab === 'scan') renderScan(); }, ms);
+  renderScan();
+}
+function reject(reason, received) {
+  feedback('err');
+  logEvent('ERROR', received ?? null, reason);
+  flash('err', 'SCAN NOT ACCEPTED', [reason, received ? `Received: ${received}` : '']);
+}
+
+function showModal({tone = 'warn', title, body = '', hint = '', buttons = [], input = null}) {
+  const sh = $('#sheet');
+  sh.className = 'sheet ' + tone;
+  sh.innerHTML = `<h2>${esc(title)}</h2>${body}${input ? `<input class="manual" id="manual-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="${esc(input.placeholder || '')}">` : ''}
+    <div class="btns" id="modal-btns"></div>${hint ? `<p class="hint">${esc(hint)}</p>` : ''}`;
+  const wrap = $('#modal-btns');
+  buttons.forEach(b => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'btn ' + (b.cls || '') + (buttons.length === 1 || b.full ? ' full' : '');
+    el.textContent = b.label;
+    el.addEventListener('click', () => {
+      const val = input ? $('#manual-input').value : undefined;   // read before the sheet is cleared
+      closeModal(); if (b.fn) enqueue(() => b.fn(val));
+    });
+    wrap.appendChild(el);
+  });
+  $('#modal').classList.add('open');
+  if (input) {
+    const mi = $('#manual-input');
+    mi.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); const v = mi.value; closeModal(); input.submit(v); }
+    });
+    mi.focus();
+  }
+}
+function closeModal() {
+  S.confirm = null;
+  $('#modal').classList.remove('open');
+  $('#sheet').innerHTML = '';
+  setTimeout(refocus, 0);
+}
+/** Confirmation that the scanner can answer: scan the same code again = yes; scan anything else = no (and that scan is processed). */
+function ask({tone = 'warn', title, body, rescan, confirmLabel, cancelLabel = 'Cancel', hint, onConfirm, extra = []}) {
+  if (S.flash && S.flash.tone !== 'err') { S.flash = null; clearTimeout(flashTimer); }
+  renderScan();
+  showModal({tone, title, body, hint,
+    buttons: [{label: confirmLabel, cls: tone === 'err' ? 'danger solid' : 'primary', fn: onConfirm},
+              ...extra,
+              {label: cancelLabel, cls: 'ghost', fn: () => renderScan()}]});
+  S.confirm = {rescan, onConfirm};
+}
+
+/* ---------------- scan pipeline ---------------- */
+let chain = Promise.resolve();
+function enqueue(fn) {
+  chain = chain.then(fn).catch(err => {
+    console.error(err);
+    feedback('err');
+    flash('err', 'SOMETHING WENT WRONG', [String(err && err.message || err)]);
+  }).then(() => { setTimeout(refocus, 0); });
+  return chain;
+}
+function onScan(raw) { enqueue(() => processScan(raw)); }
+
+async function processScan(raw) {
+  const v = clean(raw);
+  if (!v) return;
+  if (S.tab === 'settings') return scannerTest(v);
+  if (S.tab === 'search') { $('#q').value = v; return doSearch(); }
+  if (S.tab !== 'scan') showTab('scan');
+  if (nonAscii(v)) {
+    if ($('#modal').classList.contains('open')) closeModal();
+    return reject('Scan contains non-English characters. On the iPhone set Settings → General → Keyboard → Hardware Keyboard to English (US), then scan again.', v);
+  }
+
+  const up = v.toUpperCase();
+  if (S.confirm) {                       // a question is on screen
+    const c = S.confirm;
+    closeModal();
+    if (c.rescan && c.rescan === up) return c.onConfirm();
+    // anything else: question cancelled, carry on with this scan normally
+  } else if ($('#modal').classList.contains('open')) {
+    closeModal();                        // any other dialog: a new scan dismisses it
+  }
+  if (S.flash && S.flash.tone !== 'ok') S.flash = null;
+
+  if (up.startsWith('CMD:')) return command(up);
+  if (S.state === 'PACKAGE_REVIEW') S.state = S.pendingAsin ? 'WAITING_FOR_SERIAL' : 'WAITING_FOR_ASIN';
+  if (S.state === 'WAITING_FOR_TRACKING') return scanTracking(v);
+  if (S.state === 'WAITING_FOR_ASIN') return scanAsin(v);
+  if (S.state === 'WAITING_FOR_SERIAL') return scanSerial(v);
+}
+
+async function scanTracking(v, opt = {}) {
+  const t = normTracking(v);
+  if (!opt.force && looksLikeAsin(t)) {
+    feedback('warn');
+    return ask({title: 'This looks like an ASIN',
+      body: `<p>Waiting for a <b>tracking number</b>, but received:</p><p class="big2">${esc(t)}</p>`,
+      rescan: v.toUpperCase(), confirmLabel: 'Use as tracking',
+      hint: 'Scan it again to use it as the tracking number anyway.',
+      onConfirm: () => scanTracking(v, {force: true})});
+  }
+  if (!opt.force) {
+    const asSerial = (await findSerial(t))[0];
+    if (asSerial) {
+      feedback('warn');
+      return ask({title: 'This is a recorded serial number',
+        body: `<p>Waiting for a <b>tracking number</b>, but this code is already saved as a serial:</p><p class="big2">${esc(v)}</p>
+          <dl><dt>ASIN</dt><dd>${esc(asSerial.asin)}</dd><dt>Package</dt><dd>${esc(asSerial.tracking_number)}</dd></dl>`,
+        rescan: v.toUpperCase(), confirmLabel: 'Use as tracking',
+        hint: 'Scan it again to use it as a tracking number anyway.',
+        onConfirm: () => scanTracking(v, {force: true})});
+    }
+  }
+  let p = (await DB.by('packages', 'tracking', t))[0];
+  if (p && p.status === 'FINISHED' && !opt.reopen) {
+    const n = (await DB.by('items', 'package', p.id)).length;
+    feedback('warn');
+    return ask({title: 'Package already finished',
+      body: `<p class="big2">${esc(t)}</p><p>Finished ${esc(fmt(p.finished_at))} with ${plural(n, 'item')}.</p>`,
+      rescan: v.toUpperCase(), confirmLabel: 'Reopen & add items',
+      hint: 'Scan it again to reopen it, or scan a different tracking number.',
+      onConfirm: () => scanTracking(v, {force: true, reopen: true})});
+  }
+  // Only now do we leave the previous package (if any): an ASIN still waiting there is dropped.
+  if (S.pendingAsin) discardPending();
+  const now = nowISO();
+  let created = false;
+  if (!p) {
+    p = {id: uid('pkg'), tracking_number: t, carrier: carrierOf(t), status: 'OPEN',
+         created_at: now, updated_at: now, finished_at: null, device_id: deviceId};
+    await DB.put('packages', p); created = true;
+  } else if (p.status !== 'OPEN') {
+    p.status = 'OPEN'; p.finished_at = null; p.updated_at = now; await DB.put('packages', p);
+  }
+  S.pkg = p; S.items = await loadItems(p.id); S.pendingAsin = null; S.lastSaved = null;
+  S.state = 'WAITING_FOR_ASIN';
+  logEvent('TRACKING_SCAN', v, created ? 'PACKAGE_CREATED' : 'PACKAGE_OPENED');
+  saveSession(); feedback('ok');
+  flash('ok', created ? 'PACKAGE OPENED' : 'PACKAGE RESUMED',
+    [t, S.items.length ? `${plural(S.items.length, 'item')} already in it` : ''], 900);
+}
+
+const findSerial = s => s == null ? Promise.resolve([]) : DB.by('items', 'serial_norm', serialKey(s));
+
+function askNewPackage(v, as) {
+  const t = normTracking(v);
+  if (S.pkg && t === S.pkg.tracking_number) {
+    feedback('warn');
+    return flash('warn', 'SAME PACKAGE', [t, 'You are already scanning this package — nothing saved']);
+  }
+  feedback('warn');
+  ask({title: 'Possible new tracking number',
+    body: `<p>Scanned:</p><p class="big2">${esc(t)}</p><dl><dt>Current package</dt><dd>${esc(S.pkg.tracking_number)}</dd></dl>
+      ${S.pendingAsin ? `<p>ASIN <b>${esc(S.pendingAsin)}</b> has no serial yet and will be discarded.</p>` : ''}`,
+    rescan: v.toUpperCase(), confirmLabel: 'Start new package',
+    hint: 'Scan it again to start the new package (current one stays open). Scan anything else to stay.',
+    // scanTracking switches packages only once the new one is actually open
+    // (if it turns out to be a finished package and you cancel, you stay where you were).
+    onConfirm: () => scanTracking(v, {force: true}),
+    extra: [{label: as === 'serial' ? 'Save as serial' : 'Use as ASIN', cls: '',
+      fn: () => as === 'serial' ? scanSerial(v, {force: true}) : scanAsin(v, {force: true})}]});
+}
+
+async function scanAsin(v, opt = {}) {
+  const a = v.replace(/\s+/g, '').toUpperCase();
+  if (!opt.force && looksLikeTracking(a)) return askNewPackage(v, 'asin');
+  if (!opt.force) {
+    // A serial scanned twice must not become the next ASIN (it would shift every later item by one).
+    if (S.lastSaved && S.lastSaved.serial != null && serialKey(S.lastSaved.serial) === a)
+      return reject(`That's the serial you just saved for ${S.lastSaved.asin}. Scan the next product's ASIN.`, v);
+    const asSerial = (await findSerial(a))[0];
+    if (asSerial) {
+      feedback('warn');
+      return ask({title: 'This is a recorded serial number',
+        body: `<p>Waiting for an <b>ASIN</b>, but this code is already saved as a serial:</p><p class="big2">${esc(v)}</p>
+          <dl><dt>ASIN</dt><dd>${esc(asSerial.asin)}</dd><dt>Package</dt><dd>${esc(asSerial.tracking_number)}</dd></dl>`,
+        rescan: v.toUpperCase(), confirmLabel: 'Use as ASIN',
+        hint: 'Scan it again to use it as an ASIN anyway, or scan the product ASIN.',
+        onConfirm: () => scanAsin(v, {force: true})});
+    }
+  }
+  if (!opt.force && !isAsin(a)) {
+    feedback('warn');
+    return ask({title: "Doesn't look like an ASIN",
+      body: `<p>Expected a 10-character ASIN. Received ${a.length} characters:</p><p class="big2">${esc(a)}</p>`,
+      rescan: v.toUpperCase(), confirmLabel: 'Use it anyway',
+      hint: 'Scan it again to use it anyway, or scan the correct ASIN.',
+      onConfirm: () => scanAsin(v, {force: true})});
+  }
+  S.pendingAsin = a; S.state = 'WAITING_FOR_SERIAL';
+  logEvent('ASIN_SCAN', v, 'PENDING', {asin: a});
+  saveSession(); feedback('tick'); S.flash = null; renderScan();
+}
+
+async function scanSerial(v, opt = {}) {
+  const serial = v;  // stored exactly as scanned (after trimming)
+  if (!opt.force && looksLikeTracking(serial)) return askNewPackage(v, 'serial');
+  if (serial.toUpperCase() === S.pendingAsin)
+    return reject(`That's the ASIN again — scan the serial number, or NO SERIAL.`, serial);
+  if (!opt.force && looksLikeAsin(serial.toUpperCase())) {
+    // Most likely the last item had no serial and this is already the next product's ASIN.
+    const pa = S.pendingAsin;
+    feedback('warn');
+    return ask({title: 'This looks like an ASIN',
+      body: `<p>Waiting for the <b>serial</b> of <b>${esc(pa)}</b>, but received:</p><p class="big2">${esc(serial)}</p>
+        <p>Did <b>${esc(pa)}</b> have no serial number?</p>`,
+      rescan: v.toUpperCase(), confirmLabel: 'Save as serial',
+      extra: [{label: `${pa}: no serial → next`, cls: 'serial full',
+        fn: async () => { await addItem(pa, null, {via: 'CMD:NO_SERIAL (from prompt)'}); await scanAsin(v, {force: true}); }}],
+      hint: 'Scan it again to save it as the serial. Scan anything else to cancel.',
+      onConfirm: () => scanSerial(v, {force: true})});
+  }
+  if (!opt.allowDup) {
+    const dup = await findSerial(serial);
+    if (dup.length) {
+      const d = dup[0], dp = await DB.get('packages', d.package_id);
+      feedback('dup');
+      logEvent('ERROR', v, 'DUPLICATE_SERIAL', {existing_item_id: d.id});
+      return showDuplicate(serial, d, dp);
+    }
+  }
+  await addItem(S.pendingAsin, serial, {override: !!opt.allowDup});
+}
+
+function showDuplicate(serial, d, dp) {
+  S.flash = {tone: 'err', title: '⚠ DUPLICATE SERIAL', lines: [serial, 'Not saved']};
+  renderScan();
+  showModal({tone: 'err', title: '⚠ DUPLICATE SERIAL',
+    body: `<p class="big2">${esc(serial)}</p><p class="label" style="margin-top:12px">Already scanned under</p>
+      <dl><dt>Tracking</dt><dd>${esc(dp ? dp.tracking_number : '(package deleted)')}</dd><dt>ASIN</dt><dd>${esc(d.asin)}</dd><dt>Received</dt><dd>${esc(fmt(d.created_at))}</dd></dl>
+      <p><b>Not saved.</b> ASIN ${esc(S.pendingAsin)} is still waiting for its serial.</p>`,
+    hint: 'Scan the correct serial to continue. Only use “Save anyway” if this really is a second unit with the same serial.',
+    buttons: [{label: 'OK', cls: 'primary', fn: () => { S.flash = null; renderScan(); }},
+              {label: 'Save anyway', cls: 'danger', fn: () => addItem(S.pendingAsin, serial, {override: true})}]});
+  S.confirm = {rescan: null};
+}
+
+async function addItem(asin, serial, {override = false, via = null} = {}) {
+  if (!S.pkg || !asin) return;
+  const it = {id: uid('itm'), package_id: S.pkg.id, tracking_number: S.pkg.tracking_number,
+    identifier_type: isAsin(asin) ? 'ASIN' : 'OTHER', asin, serial: serial ?? null, serial_norm: serialKey(serial), quantity: 1,
+    created_at: nowISO(), device_id: deviceId};
+  if (override) it.duplicate_override = true;
+  await DB.put('items', it);
+  S.items.push(it); S.itemCount = (S.itemCount || 0) + 1;
+  S.pkg.updated_at = it.created_at; await DB.put('packages', S.pkg);
+  logEvent(serial == null ? 'CONTROL_COMMAND' : 'SERIAL_SCAN', serial == null ? (via || 'CMD:NO_SERIAL') : serial,
+    override ? 'SAVED_DUPLICATE_OVERRIDE' : 'SAVED', {item_id: it.id, asin});
+  S.pendingAsin = null; S.state = 'WAITING_FOR_ASIN'; S.lastSaved = it;
+  saveSession(); feedback('ok');
+  flash('ok', '✓ SAVED', [`${asin} / ${serial ?? 'NO SERIAL'}`], 750);
+}
+
+function discardPending() {
+  if (!S.pendingAsin) return;
+  logEvent('CONTROL_COMMAND', null, 'ASIN_DISCARDED', {asin: S.pendingAsin});
+  S.pendingAsin = null;
+  if (S.pkg) S.state = 'WAITING_FOR_ASIN';
+  saveSession();
+}
+
+/* ---------------- control commands ---------------- */
+async function command(cmd) {
+  logEvent('CONTROL_COMMAND', cmd, 'RECEIVED');
+  if (S.state === 'PACKAGE_REVIEW' && cmd !== 'CMD:REVIEW' && cmd !== 'CMD:UNDO') S.state = S.pendingAsin ? 'WAITING_FOR_SERIAL' : 'WAITING_FOR_ASIN';
+  switch (cmd) {
+    case 'CMD:NO_SERIAL':
+      if (!S.pkg) return reject('Scan a tracking number first.', cmd);
+      if (!S.pendingAsin) return reject('NO SERIAL needs an ASIN first — scan the product ASIN.', cmd);
+      return addItem(S.pendingAsin, null, {via: cmd});
+    case 'CMD:NEXT_ASIN':
+    case 'CMD:CANCEL_ASIN':
+      if (!S.pkg) return reject('No package open — scan a tracking number.', cmd);
+      if (S.pendingAsin) { const a = S.pendingAsin; discardPending(); feedback('tick'); return flash('warn', 'ASIN DISCARDED', [a, 'Nothing saved'], 1000); }
+      S.state = 'WAITING_FOR_ASIN'; feedback('tick'); return renderScan();
+    case 'CMD:NEW_PACKAGE': return newPackage();
+    case 'CMD:UNDO':        return undoLast();
+    case 'CMD:FINISH':      return finishPackage();
+    case 'CMD:REVIEW':
+      if (!S.pkg) return reject('No package open — scan a tracking number first.', cmd);
+      S.state = 'PACKAGE_REVIEW'; S.flash = null; feedback('tick'); return renderScan();
+    default:
+      return reject('Unknown control barcode.', cmd);
+  }
+}
+
+function newPackage(confirmed) {
+  if (S.pendingAsin && !confirmed) {
+    feedback('warn');
+    return ask({title: 'ASIN still waiting for a serial',
+      body: `<p class="big2">${esc(S.pendingAsin)}</p><p>Starting a new package will discard it (nothing saved for it).</p>`,
+      rescan: 'CMD:NEW_PACKAGE', confirmLabel: 'Discard & new package',
+      hint: 'Scan NEW PACKAGE again to confirm — or scan the serial / NO SERIAL first.',
+      onConfirm: () => newPackage(true)});
+  }
+  discardPending();
+  const had = S.pkg, n = S.items.length;
+  S.pkg = null; S.items = []; S.state = 'WAITING_FOR_TRACKING'; S.lastSaved = null;
+  saveSession(); feedback('tick');
+  flash('ok', had ? 'READY FOR NEXT PACKAGE' : 'READY',
+    had ? [`${had.tracking_number} left OPEN · ${plural(n, 'item')}`, 'Finish it later from Packages'] : [], 1400);
+}
+
+async function undoLast(confirmed) {
+  if (!S.pkg) return reject('Nothing to undo — no package open.', 'CMD:UNDO');
+  const last = S.items[S.items.length - 1];
+  if (!last) return reject('Nothing to undo — this package has no items yet.', 'CMD:UNDO');
+  if (!confirmed && !prefs.fastUndo) {
+    feedback('warn');
+    return ask({title: 'Undo last item?',
+      body: `<dl><dt>ASIN</dt><dd>${esc(last.asin)}</dd><dt>Serial</dt><dd>${esc(last.serial ?? 'NO SERIAL')}</dd></dl>`,
+      rescan: 'CMD:UNDO', confirmLabel: 'Undo item',
+      hint: 'Scan UNDO again to confirm. Scanning anything else cancels.',
+      onConfirm: () => undoLast(true)});
+  }
+  await DB.del('items', last.id);
+  S.items.pop(); S.itemCount = Math.max(0, (S.itemCount || 1) - 1);
+  logEvent('UNDO', 'CMD:UNDO', 'ITEM_REMOVED', {removed_item: last});
+  if (S.lastSaved && S.lastSaved.id === last.id) S.lastSaved = null;
+  feedback('tick');
+  flash('warn', 'UNDO COMPLETE', [`${last.asin} / ${last.serial ?? 'NO SERIAL'}`], 1100);
+}
+
+async function finishPackage(confirmed) {
+  if (!S.pkg) return reject('No package open — scan a tracking number first.', 'CMD:FINISH');
+  if (S.pendingAsin && !confirmed) {
+    feedback('warn');
+    return ask({title: 'ASIN still waiting for a serial',
+      body: `<p class="big2">${esc(S.pendingAsin)}</p><p>Finishing now will discard it (nothing saved for it).</p>`,
+      rescan: 'CMD:FINISH', confirmLabel: 'Discard ASIN & finish',
+      hint: 'Scan FINISH again to confirm — or scan the serial / NO SERIAL first.',
+      onConfirm: () => finishPackage(true)});
+  }
+  discardPending();
+  const p = S.pkg, n = S.items.length;
+  p.status = 'FINISHED'; p.finished_at = p.updated_at = nowISO();
+  await DB.put('packages', p);
+  logEvent('CONTROL_COMMAND', 'CMD:FINISH', 'PACKAGE_FINISHED', {item_count: n});
+  S.lastFinished = {tracking: p.tracking_number, n, id: p.id};
+  S.pkg = null; S.items = []; S.state = 'WAITING_FOR_TRACKING'; S.lastSaved = null;
+  saveSession(); feedback('done');
+  flash('ok', '✓ PACKAGE FINISHED', [p.tracking_number, plural(n, 'item')], 1600);
+  refreshCounts();
+}
+
+async function deleteItem(id) {
+  const it = await DB.get('items', id);
+  if (!it) return;
+  showModal({tone: 'err', title: 'Delete this item?',
+    body: `<dl><dt>Tracking</dt><dd>${esc(it.tracking_number)}</dd><dt>ASIN</dt><dd>${esc(it.asin)}</dd><dt>Serial</dt><dd>${esc(it.serial ?? 'NO SERIAL')}</dd></dl>`,
+    hint: 'The deletion is kept in the audit log.',
+    buttons: [{label: 'Delete item', cls: 'danger solid', fn: async () => {
+        await DB.del('items', id); S.itemCount = Math.max(0, (S.itemCount || 1) - 1);
+        logEvent('DELETE_ITEM', null, 'ITEM_REMOVED', {removed_item: it, package_id: it.package_id});
+        if (S.pkg && it.package_id === S.pkg.id) {
+          S.items = S.items.filter(x => x.id !== id);
+          if (S.lastSaved && S.lastSaved.id === id) S.lastSaved = null;
+        }
+        feedback('tick'); rerender();
+      }},
+      {label: 'Keep', cls: 'ghost'}]});
+}
+
+async function resumePackage(id) {
+  const p = await DB.get('packages', id);
+  if (!p) return;
+  let dropped = null;
+  if (!(S.pkg && S.pkg.id === id)) {
+    if (S.pendingAsin) { dropped = S.pendingAsin; discardPending(); }
+    if (p.status !== 'OPEN') { p.status = 'OPEN'; p.finished_at = null; p.updated_at = nowISO(); await DB.put('packages', p); }
+    S.pkg = p; S.items = await loadItems(p.id); S.lastSaved = null;
+    logEvent('TRACKING_SCAN', p.tracking_number, 'PACKAGE_OPENED_FROM_LIST');
+  }
+  S.state = S.pendingAsin ? 'WAITING_FOR_SERIAL' : 'WAITING_FOR_ASIN';
+  S.detail = null; saveSession();
+  showTab('scan');
+  flash(dropped ? 'warn' : 'ok', 'PACKAGE RESUMED',
+    [p.tracking_number, plural(S.items.length, 'item'), dropped ? `ASIN ${dropped} from the previous package had no serial — discarded` : ''], dropped ? 2500 : 900);
+}
+
+/* ---------------- rendering: SCAN ---------------- */
+const qty = i => Math.max(1, parseInt(i && i.quantity, 10) || 1);
+function summarize(items) {
+  const m = new Map();
+  for (const it of items) {
+    let g = m.get(it.asin);
+    if (!g) { g = {asin: it.asin, qty: 0, ser: 0, items: []}; m.set(it.asin, g); }
+    g.qty += qty(it); if (it.serial != null) g.ser++; g.items.push(it);
+  }
+  return [...m.values()];
+}
+function totalQty(items) { return items.reduce((s, i) => s + qty(i), 0); }
+
+function backupHint() {
+  if (Cloud.user) return '';   // the cloud is the backup
+  const lb = lastBackup(), n = S.itemCount || 0, since = n - (lb ? lb.items : 0);
+  const stale = !lb || (Date.now() - new Date(lb.at).getTime()) > 24 * 3600 * 1000;
+  if (n === 0 || since <= 0 || !stale) return '';
+  return `<button class="backup-hint" data-tab="settings">⚠ ${since} item${since === 1 ? '' : 's'} not backed up · last backup ${lb ? esc(fmt(lb.at)) : 'never'} — tap to export</button>`;
+}
+async function refreshCounts() { try { S.itemCount = await DB.count('items'); } catch (e) {} if (S.tab === 'scan') renderScan(); }
+
+function renderScan() {
+  const v = $('#v-scan');
+  renderCloudStatus();
+  if (S.state === 'PACKAGE_REVIEW' && S.pkg) { v.innerHTML = detailHTML(S.pkg, S.items, 'review'); return; }
+
+  const pkgCard = S.pkg
+    ? `<div class="pkg"><div><div class="label">Package</div><div class="trk">${esc(S.pkg.tracking_number)}</div>${S.pkg.carrier ? `<div class="carrier">${esc(S.pkg.carrier)}</div>` : ''}</div>
+         <div class="count"><div class="label">Items</div><b>${totalQty(S.items)}</b></div></div>`
+    : `<div class="pkg none"><div><div class="label">Package</div><div>No package open</div>${S.lastFinished ? `<div class="carrier">Last finished: <span class="mono">${esc(S.lastFinished.tracking)}</span> · ${plural(S.lastFinished.n, 'item')}</div>` : ''}</div></div>${backupHint()}`;
+
+  let cls, inner;
+  const nextWord = S.state === 'WAITING_FOR_TRACKING' ? 'TRACKING NUMBER' : S.state === 'WAITING_FOR_ASIN' ? 'ASIN' : 'SERIAL';
+  if (S.flash) {
+    cls = S.flash.tone;
+    inner = `<div class="big">${esc(S.flash.title)}</div>${S.flash.lines.map((l, i) => `<div class="fl ${i === 0 && S.flash.tone !== 'err' ? 'mono' : ''}">${esc(l)}</div>`).join('')}
+      ${S.flash.tone !== 'ok' ? `<div class="next">Next: scan ${nextWord}${S.pendingAsin ? ` for ${esc(S.pendingAsin)}` : ''}</div>` : ''}`;
+  } else if (S.state === 'WAITING_FOR_TRACKING') {
+    cls = 's-trk'; inner = `<div class="sub">Step 1</div><div class="big">SCAN TRACKING NUMBER</div>`;
+  } else if (S.state === 'WAITING_FOR_ASIN') {
+    cls = 's-asin'; inner = `<div class="sub">Next item</div><div class="big">SCAN ASIN</div>`;
+  } else {
+    cls = 's-serial'; inner = `<div class="sub">Current ASIN</div><div class="asin">${esc(S.pendingAsin)}</div><div class="big">SCAN SERIAL</div><div class="or">or scan NO SERIAL · NEXT ASIN · UNDO · NEW PACKAGE</div>`;
+  }
+
+  let btns = '';
+  if (S.state === 'WAITING_FOR_SERIAL') {
+    btns = `<button class="btn serial full" data-cmd="CMD:NO_SERIAL">No serial</button>
+            <button class="btn full" data-cmd="CMD:NEXT_ASIN">Cancel ASIN</button>`;
+  } else if (S.state === 'WAITING_FOR_ASIN') {
+    btns = `<button class="btn" data-cmd="CMD:REVIEW">Review</button>
+            <button class="btn primary" data-cmd="CMD:FINISH">Finish</button>
+            <button class="btn ghost" data-cmd="CMD:UNDO">Undo last</button>
+            <button class="btn ghost" data-cmd="CMD:NEW_PACKAGE">New package</button>`;
+  }
+  btns += `<button class="btn ghost full" data-act="type">⌨ Type a code</button>`;
+
+  const last = S.lastSaved
+    ? `<div class="last"><div class="label">Last scan</div><div class="row"><span>${esc(S.lastSaved.asin)} / ${S.lastSaved.serial != null ? esc(S.lastSaved.serial) : '<span class="ns">no serial</span>'}</span><span class="ok">✓</span></div></div>` : '';
+
+  const recent = S.pkg && S.items.length
+    ? `<div class="recent"><div class="label">In this package (latest first)</div><ol>${S.items.slice(-6).reverse().map(it =>
+        `<li><span>${esc(it.asin)} · ${it.serial != null ? esc(it.serial) : '<span class="ns">no serial</span>'}</span><span>${esc(fmtTime(it.created_at))}</span></li>`).join('')}</ol></div>` : '';
+
+  v.innerHTML = `${pkgCard}<div class="prompt ${cls}">${inner}</div>${last}<div class="btns">${btns}</div>${recent}`;
+}
+
+function detailHTML(p, items, ctx) {
+  const groups = summarize(items);
+  const active = S.pkg && S.pkg.id === p.id;
+  const ser = items.filter(i => i.serial != null).length;
+  const head = ctx === 'browse' ? `<button class="back" data-act="back">‹ Packages</button>` : `<div class="label" style="margin-bottom:6px">Package review</div>`;
+  const actions = ctx === 'review'
+    ? `<button class="btn primary full" data-act="addmore">Add more</button>
+       <button class="btn" data-cmd="CMD:UNDO">Undo last</button>
+       <button class="btn" data-cmd="CMD:FINISH">Finish package</button>`
+    : active
+      ? `<button class="btn primary full" data-act="resume" data-id="${esc(p.id)}">Back to scanning</button>`
+      : `<button class="btn primary full" data-act="resume" data-id="${esc(p.id)}">${p.status === 'FINISHED' ? 'Reopen & add items' : 'Resume scanning'}</button>`;
+  return `<div class="detail">${head}
+    <div class="label">Tracking</div><div class="trk">${esc(p.tracking_number)}</div>
+    <div class="meta"><span class="badge ${esc(p.status)}">${esc(p.status)}</span> ${p.carrier ? '· ' + esc(p.carrier) : ''}<br>
+      Opened ${esc(fmt(p.created_at))}${p.finished_at ? ` · Finished ${esc(fmt(p.finished_at))}` : ''}</div>
+    <div class="total"><span class="label">Total items</span><b>${totalQty(items)}</b></div>
+    <div class="label">ASIN summary · ${groups.length} ASIN${groups.length === 1 ? '' : 's'} · ${ser} serialized</div>
+    ${groups.map(g => `<details class="grp"><summary><span class="a">${esc(g.asin)}</span><span class="q"><b>Qty ${g.qty}</b><br>Serialized ${g.ser}</span></summary>
+      <ul>${g.items.map(it => `<li><span class="s">${it.serial != null ? esc(it.serial) : '<span class="ns">no serial</span>'}</span><span class="t">${esc(fmtTime(it.created_at))}</span><button class="x" data-act="del" data-id="${esc(it.id)}">Delete</button></li>`).join('')}</ul></details>`).join('')
+      || '<p class="empty">No items yet.</p>'}
+    <div class="btns">${actions}</div></div>`;
+}
+
+/* ---------------- rendering: PACKAGES ---------------- */
+async function renderPackages() {
+  const v = $('#v-packages');
+  if (S.detail) {
+    const p = await DB.get('packages', S.detail);
+    if (!p) { S.detail = null; return renderPackages(); }
+    v.innerHTML = detailHTML(p, await loadItems(p.id), 'browse');
+    return;
+  }
+  const [pk, items] = await Promise.all([DB.all('packages'), DB.all('items')]);
+  const counts = new Map();
+  for (const it of items) counts.set(it.package_id, (counts.get(it.package_id) || 0) + qty(it));
+  const today = dayKey(nowISO());
+  const f = S.pf;
+  const list = pk.filter(p => f === 'all' ? true : f === 'open' ? p.status === 'OPEN' : f === 'finished' ? p.status === 'FINISHED'
+      : (dayKey(p.created_at) === today || dayKey(p.updated_at) === today))
+    .sort((a, b) => a.updated_at < b.updated_at ? 1 : -1);
+  const chip = (k, l) => `<button class="chip ${f === k ? 'on' : ''}" data-act="filter" data-f="${k}">${l}</button>`;
+  let html = `<div class="chips">${chip('today', 'Today')}${chip('open', 'Open')}${chip('finished', 'Finished')}${chip('all', 'All')}</div>`;
+  if (!list.length) html += `<p class="empty">${pk.length ? 'Nothing in this filter.' : 'No packages yet. Scan a tracking number to start.'}</p>`;
+  let lastDay = null;
+  html += '<ul class="plist">';
+  for (const p of list) {
+    const d = dayKey(p.updated_at);
+    if (d !== lastDay) { html += `</ul><div class="label day">${d === today ? 'Today' : esc(d)}</div><ul class="plist">`; lastDay = d; }
+    const isActive = S.pkg && S.pkg.id === p.id;
+    html += `<li><button class="pcard" data-act="open-pkg" data-id="${esc(p.id)}"><div><div class="tn">${esc(p.tracking_number)}</div>
+      <div class="sm"><span class="badge ${esc(p.status)}">${isActive ? 'SCANNING' : esc(p.status)}</span> ${p.carrier ? esc(p.carrier) : ''}</div></div>
+      <div class="rt"><b>${counts.get(p.id) || 0}</b>items<br>${esc(fmtTime(p.updated_at))}</div></button></li>`;
+  }
+  html += '</ul>';
+  v.innerHTML = html;
+}
+
+/* ---------------- SEARCH ---------------- */
+async function doSearch() {
+  const q = clean($('#q').value), out = $('#results');
+  if (!q) { out.innerHTML = ''; return; }
+  const Q = q.toUpperCase(), T = normTracking(q);
+  const [pk, items] = await Promise.all([DB.all('packages'), DB.all('items')]);
+  const pById = new Map(pk.map(p => [p.id, p]));
+  let ser = items.filter(i => i.serial != null && i.serial.toUpperCase() === Q);
+  let pks = pk.filter(p => p.tracking_number === T);
+  let asins = items.filter(i => i.asin === Q);
+  let partial = false;
+  if (!ser.length && !pks.length && !asins.length && Q.length >= 3) {
+    partial = true;
+    ser = items.filter(i => i.serial != null && i.serial.toUpperCase().includes(Q));
+    pks = pk.filter(p => p.tracking_number.includes(T));
+    asins = items.filter(i => i.asin.includes(Q));
+  }
+  const pkgLink = p => p ? `<button class="linkish" data-act="open-pkg" data-id="${esc(p.id)}">${esc(p.tracking_number)}</button>` : '(deleted)';
+  let html = '';
+  if (partial && (ser.length || pks.length || asins.length)) html += `<p class="hint">No exact match — showing partial matches for “${esc(q)}”.</p>`;
+  if (ser.length) {
+    html += `<h3 class="sec">Serial number</h3>` + ser.slice(0, 50).map(i => `<div class="res"><dl>
+      <dt>Serial</dt><dd>${esc(i.serial)}</dd><dt>ASIN</dt><dd>${esc(i.asin)}</dd>
+      <dt>Tracking</dt><dd>${pkgLink(pById.get(i.package_id))}</dd><dt>Received</dt><dd>${esc(fmt(i.created_at))}</dd></dl></div>`).join('');
+  }
+  if (pks.length) {
+    html += `<h3 class="sec">Tracking number</h3>` + pks.slice(0, 30).map(p => {
+      const its = items.filter(i => i.package_id === p.id);
+      return `<div class="res"><dl><dt>Tracking</dt><dd>${pkgLink(p)}</dd><dt>Status</dt><dd>${esc(p.status)}</dd><dt>Items</dt><dd>${totalQty(its)}</dd></dl>
+        <div class="lines">${summarize(its).map(g => `${esc(g.asin)} × ${g.qty}`).join('<br>') || '<span class="ns">no items</span>'}</div></div>`;
+    }).join('');
+  }
+  if (asins.length) {
+    const byAsin = new Map();
+    for (const i of asins) { if (!byAsin.has(i.asin)) byAsin.set(i.asin, []); byAsin.get(i.asin).push(i); }
+    html += `<h3 class="sec">ASIN</h3>`;
+    for (const [a, its] of [...byAsin].slice(0, 20)) {
+      const perPkg = new Map();
+      for (const i of its) perPkg.set(i.package_id, (perPkg.get(i.package_id) || 0) + qty(i));
+      html += `<div class="res"><dl><dt>ASIN</dt><dd>${esc(a)}</dd><dt>Total</dt><dd>${totalQty(its)}</dd></dl>
+        <div class="label" style="margin-top:8px">Found in packages</div><div class="lines">${[...perPkg].map(([pid, n]) => {
+          const p = pById.get(pid); return `${pkgLink(p)} × ${n}${p ? ` <span class="ns">${esc(fmt(p.created_at))}</span>` : ''}`; }).join('<br>')}</div></div>`;
+    }
+  }
+  out.innerHTML = html || `<p class="empty">No match for “${esc(q)}”.</p>`;
+}
+
+/* ---------------- Code 128 (set B) for the control sheet ---------------- */
+const C128 = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
+function code128svg(text) {
+  const vals = [104];
+  for (const ch of text) { const c = ch.charCodeAt(0); if (c < 32 || c > 126) throw new Error('Code128B: unsupported char'); vals.push(c - 32); }
+  let sum = 104; for (let i = 1; i < vals.length; i++) sum += vals[i] * i;
+  vals.push(sum % 103, 106);
+  const widths = vals.map(v => C128[v]).join('');
+  const quiet = 12; let x = quiet, bar = true, rects = '';
+  for (const w of widths) { const n = +w; if (bar) rects += `<rect x="${x}" y="0" width="${n}" height="60"/>`; x += n; bar = !bar; }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${x + quiet} 60" preserveAspectRatio="none" shape-rendering="crispEdges" role="img" aria-label="${esc(text)}"><rect width="${x + quiet}" height="60" fill="#fff"/><g fill="#000">${rects}</g></svg>`;
+}
+const CONTROLS = [
+  ['NO SERIAL', 'CMD:NO_SERIAL'], ['NEXT ASIN', 'CMD:NEXT_ASIN'], ['NEW PACKAGE', 'CMD:NEW_PACKAGE'],
+  ['UNDO LAST', 'CMD:UNDO'], ['FINISH PACKAGE', 'CMD:FINISH'], ['REVIEW PACKAGE', 'CMD:REVIEW'],
+];
+function buildPrintSheet() {
+  $('#print-sheet').innerHTML = `<h1>AltaCoco Scan Station — control barcodes</h1>
+    <p>Keep next to the receiving station. Scanner: HID keyboard mode, suffix Enter, no prefix.</p>
+    <div class="ps-grid">${CONTROLS.map(([l, c]) => `<div class="ps"><b>${l}</b>${code128svg(c)}<span>${c}</span></div>`).join('')}</div>`;
+}
+
+/* ---------------- SETTINGS ---------------- */
+let lastTest = null;
+function scannerTest(v) {
+  const up = v.toUpperCase();
+  const kind = up.startsWith('CMD:') ? (CONTROLS.some(c => c[1] === up) ? 'Control barcode' : 'Unknown control barcode')
+    : looksLikeTracking(v) ? `Tracking number${carrierOf(normTracking(v)) ? ' · ' + carrierOf(normTracking(v)) : ''}`
+    : isAsin(up) ? 'Looks like an ASIN (10 chars)' : `${v.length} characters`;
+  lastTest = {v, kind: nonAscii(v) ? 'Non-English characters — set the iPhone hardware keyboard to English (US)' : kind, at: new Date()};
+  feedback('test');   // different sound from "saved": nothing is recorded on this screen
+  const box = $('#test-box');
+  if (box) { box.className = 'test ok'; box.innerHTML = testBoxHTML(); }
+}
+function testBoxHTML() {
+  return lastTest
+    ? `<div class="label">Last input</div><div class="v">${esc(lastTest.v)}</div><div>${esc(lastTest.kind)}</div><div style="margin-top:6px;color:var(--ok);font-weight:800">✓ Scanner working</div>
+       <div class="note" style="margin-top:6px">Test only — scans on this screen are not saved. Go to SCAN to receive.</div>`
+    : `<div class="label">Scan test barcode</div><div class="v">—</div><div class="note">Scan anything while this screen is open. Nothing is saved here.</div>`;
+}
+async function renderSettings() {
+  const [np, ni, ne] = await Promise.all([DB.count('packages'), DB.count('items'), DB.count('events')]);
+  let persisted = null;
+  try { if (navigator.storage && navigator.storage.persisted) persisted = await navigator.storage.persisted(); } catch (e) {}
+  const standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  $('#v-settings').innerHTML = `
+  <div class="card" id="cloud-card" data-key="${esc(cloudKey())}">${cloudCardHTML()}</div>
+  <div class="card"><h2>Scanner setup</h2>
+    <dl class="kv"><dt>Scanner mode</dt><dd>HID Keyboard</dd><dt>Suffix</dt><dd>Enter</dd><dt>Prefix</dt><dd>None</dd><dt>Keyboard</dt><dd>US English</dd></dl>
+    <p class="note" style="margin-top:8px">iPhone: Settings → General → Keyboard → <b>Hardware Keyboard</b> → set to <b>English (US)</b>. A Chinese input method there can garble scans.</p>
+    <div class="test ${lastTest ? 'ok' : ''}" id="test-box">${testBoxHTML()}</div>
+    <p class="note" style="margin-top:10px">Pair the scanner with the iPhone in Bluetooth settings. While a Bluetooth scanner is connected, iOS hides the on-screen keyboard — that's expected. If scans stop registering, tap anywhere on the page once.</p>
+  </div>
+  <div class="card"><h2>Control barcodes</h2>
+    <p class="note">Print once and keep next to the station. Scanning one of these does the same as the matching button.</p>
+    <div class="ctl-grid">${CONTROLS.map(([l, c]) => `<div class="ctl"><b>${l}</b>${code128svg(c)}<span>${c}</span></div>`).join('')}</div>
+    <div class="btns"><button class="btn primary full" data-act="print">Print control sheet</button></div>
+  </div>
+  <div class="card"><h2>Feedback</h2>
+    <label class="toggle"><span>Sound<small>Beeps for saved / error / duplicate / finished. Use the ring switch on the iPhone side for silent.</small></span><input type="checkbox" data-pref="sound" ${prefs.sound ? 'checked' : ''}></label>
+    <label class="toggle"><span>Fast undo<small>UNDO removes the last item immediately instead of asking you to scan UNDO twice.</small></span><input type="checkbox" data-pref="fastUndo" ${prefs.fastUndo ? 'checked' : ''}></label>
+  </div>
+  <div class="card"><h2>Data on this device</h2>
+    <dl class="kv"><dt>Packages</dt><dd>${np}</dd><dt>Items</dt><dd>${ni}</dd><dt>Audit events</dt><dd>${ne}</dd>
+      <dt>Storage</dt><dd>${persisted === true ? 'Persistent' : persisted === false ? 'Best-effort' : 'Unknown'}</dd>
+      <dt>Running as</dt><dd>${standalone ? 'Home Screen app' : 'Browser tab'}</dd>
+      <dt>Last backup</dt><dd>${lastBackup() ? esc(fmt(lastBackup().at)) : 'Never'}</dd></dl>
+    <p class="note" style="margin-top:10px">${Cloud.enabled ? 'Every scan is saved on this device first, then uploaded to your Firebase cloud when signed in and online.' : 'Scans are saved <b>only on this device</b>, in this browser — nothing is sent to a server.'} On iPhone, the Home Screen app and Safari keep <b>separate</b> data, so pick one (Home Screen recommended: Share → Add to Home Screen) and export a backup regularly.</p>
+    <div class="btns">
+      <button class="btn primary full" data-act="export-csv">Export CSV</button>
+      <button class="btn" data-act="export-json">Backup (JSON)</button>
+      <button class="btn" data-act="import-json">Restore backup</button>
+      <button class="btn danger full" data-act="clear-all">${Cloud.user ? 'Sign out &amp; remove from this device' : 'Erase all data on this device'}</button>
+    </div>
+  </div>
+  <p class="note" style="text-align:center">AltaCoco Scan Station · v1 · device ${esc(deviceId.slice(-6))}</p>`;
+}
+
+/* ---------------- export / import ---------------- */
+async function download(name, text, type) {
+  const b = new Blob([text], {type});
+  // iPhone (especially the Home Screen app): the share sheet → "Save to Files" is the reliable route.
+  try {
+    const f = new File([b], name, {type});
+    if (navigator.canShare && navigator.share && navigator.canShare({files: [f]})) { await navigator.share({files: [f], title: name}); return true; }
+  } catch (e) { if (e && e.name === 'AbortError') return false; }   // user closed the share sheet
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+  return true;
+}
+function csvCell(v, isId) {
+  if (v == null) return '';
+  v = String(v);
+  // Identifier columns: keep leading zeros and long numbers intact in Excel/Numbers.
+  if (isId && /^\d+$/.test(v)) return `"=""${v}"""`;
+  // Scanned text is untrusted: never let Excel run it as a formula.
+  if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+  return /[",\r\n']/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+function noteBackup(items) { try { localStorage.setItem('scanstation.lastBackup', JSON.stringify({at: nowISO(), items})); } catch (e) {} }
+function lastBackup() { try { return JSON.parse(localStorage.getItem('scanstation.lastBackup') || 'null'); } catch (e) { return null; } }
+const stamp = () => { const d = new Date(); return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`; };
+async function exportCSV() {
+  const [pk, items] = await Promise.all([DB.all('packages'), DB.all('items')]);
+  const pById = new Map(pk.map(p => [p.id, p]));
+  items.sort((a, b) => a.created_at < b.created_at ? -1 : 1);
+  const rows = [['tracking_number', 'carrier', 'package_status', 'asin', 'serial', 'quantity', 'received_at', 'package_opened_at', 'package_finished_at', 'duplicate_override']];
+  const ID_COLS = new Set([0, 3, 4]);   // tracking, asin, serial
+  for (const i of items) {
+    const p = pById.get(i.package_id) || {};
+    rows.push([p.tracking_number || i.tracking_number, p.carrier, p.status, i.asin, i.serial, qty(i), fmt(i.created_at), fmt(p.created_at), fmt(p.finished_at), i.duplicate_override ? 'yes' : '']);
+  }
+  for (const p of pk) if (!items.some(i => i.package_id === p.id))
+    rows.push([p.tracking_number, p.carrier, p.status, '', '', 0, '', fmt(p.created_at), fmt(p.finished_at), '']);
+  const csv = '﻿' + rows.map((r, ri) => r.map((c, ci) => csvCell(c, ri > 0 && ID_COLS.has(ci))).join(',')).join('\r\n');
+  if (await download(`scan-station-${stamp()}.csv`, csv, 'text/csv')) { noteBackup(items.length); logEvent('EXPORT', null, 'CSV', {items: items.length}); }
+}
+async function exportJSON() {
+  const [packages, items, events] = await Promise.all([DB.all('packages'), DB.all('items'), DB.all('events')]);
+  const ok = await download(`scan-station-backup-${stamp()}.json`,
+    JSON.stringify({app: 'altacoco-scan-station', version: 2, exported_at: nowISO(), device_id: deviceId, packages, items, events}), 'application/json');
+  if (ok) { noteBackup(items.length); logEvent('EXPORT', null, 'JSON', {items: items.length}); }
+}
+const str = v => typeof v === 'string' && v.length > 0 && v.length < 200;
+/** Merge a backup into this device without resurrecting removed items or overwriting newer data. */
+async function importJSON(file) {
+  let data;
+  try { data = JSON.parse(await file.text()); } catch (e) { throw new Error('That file is not valid JSON.'); }
+  if (!data || data.app !== 'altacoco-scan-station' || !Array.isArray(data.packages)) throw new Error('Not a Scan Station backup file.');
+  const removed = new Set((await DB.all('events')).filter(e => e.removed_item && e.removed_item.id).map(e => e.removed_item.id));
+  const idMap = new Map(); let np = 0, ni = 0, skipped = 0;
+  for (const p of data.packages) {
+    if (!p || !str(p.id) || !str(p.tracking_number)) { skipped++; continue; }
+    const pkg = {id: p.id, tracking_number: p.tracking_number.toUpperCase(), carrier: String(p.carrier || ''),
+      status: p.status === 'FINISHED' ? 'FINISHED' : 'OPEN', created_at: String(p.created_at || nowISO()),
+      updated_at: String(p.updated_at || p.created_at || nowISO()), finished_at: p.finished_at ? String(p.finished_at) : null, device_id: String(p.device_id || '')};
+    const ex = (await DB.by('packages', 'tracking', pkg.tracking_number))[0];
+    if (ex) { idMap.set(pkg.id, ex.id); if (ex.id === pkg.id && pkg.updated_at > ex.updated_at) { await DB.put('packages', pkg); np++; } continue; }
+    await DB.put('packages', pkg); idMap.set(pkg.id, pkg.id); np++;
+  }
+  for (const i of data.items || []) {
+    if (!i || !str(i.id) || !str(i.asin) || !idMap.has(i.package_id) || removed.has(i.id)) { skipped++; continue; }
+    if (await DB.get('items', i.id)) continue;                       // already here
+    const serial = i.serial == null ? null : String(i.serial);
+    if (serial != null && (await findSerial(serial)).length) { skipped++; continue; }   // would be a duplicate serial
+    const pkgId = idMap.get(i.package_id), pkg = await DB.get('packages', pkgId);
+    await DB.put('items', {id: i.id, package_id: pkgId, tracking_number: pkg ? pkg.tracking_number : String(i.tracking_number || ''),
+      identifier_type: i.identifier_type === 'OTHER' ? 'OTHER' : 'ASIN', asin: String(i.asin).toUpperCase(), serial, serial_norm: serialKey(serial),
+      quantity: Math.max(1, parseInt(i.quantity, 10) || 1), created_at: String(i.created_at || nowISO()), device_id: String(i.device_id || ''),
+      ...(i.duplicate_override ? {duplicate_override: true} : {})});
+    ni++;
+  }
+  for (const e of data.events || []) if (e && str(e.id) && !(await DB.get('events', e.id))) await DB.put('events', e);
+  logEvent('IMPORT', file.name, 'IMPORTED', {packages: np, items: ni, skipped});
+  if (S.pkg) S.items = await loadItems(S.pkg.id);
+  await refreshCounts();
+  return {np, ni, skipped};
+}
+function eraseAll(step) {
+  const cloud = !!Cloud.user;
+  if (!step) return showModal({tone: 'err', title: cloud ? 'Remove data from this device?' : 'Erase all scan data?',
+    body: cloud
+      ? `<p>You'll be signed out and every package, item and audit event will be deleted <b>from this phone</b>. The cloud copy stays; sign in again to download it.</p>${Cloud.pending ? `<p><b>${Cloud.pending} change(s) haven't uploaded yet and would be lost.</b> Sync first.</p>` : ''}`
+      : '<p>Every package, item and audit event on this device will be deleted. Export a backup first if you might need it.</p>',
+    buttons: [{label: 'Continue', cls: 'danger', fn: () => eraseAll(1)}, {label: 'Cancel', cls: 'ghost'}]});
+  showModal({tone: 'err', title: cloud ? 'Really remove from this device?' : 'Really erase everything?', body: '<p>This cannot be undone on this device.</p>',
+    buttons: [{label: cloud ? 'Sign out & remove' : 'Erase everything', cls: 'danger solid', fn: async () => {
+      if (cloud) { await Cloud.signOut(); Cloud.forgetDevice(); }
+      await Promise.all(['packages', 'items', 'events', 'outbox'].map(s => DB.clear(s)));
+      S.pkg = null; S.items = []; S.pendingAsin = null; S.state = 'WAITING_FOR_TRACKING'; S.lastSaved = null; S.lastFinished = null;
+      saveSession(); S.itemCount = 0; await Cloud.refreshPending(); renderSettings();
+    }}, {label: 'Cancel', cls: 'ghost'}]});
+}
+
+/* ---------------- cloud card (Settings) ---------------- */
+function cloudCardHTML() {
+  const C = Cloud;
+  if (!C.enabled) return `<h2>Cloud sync</h2><p class="note">Not set up yet — scans stay on this device. (Fill in <span class="mono">trade/firebase-config.js</span> to turn on Firebase sync.)</p>`;
+  if (!C.ready) return `<h2>Cloud sync</h2><p class="note">${C.error ? esc(C.error) : 'Connecting…'}</p>`;
+  if (!C.user) return `<h2>Cloud sync</h2>
+    <p class="note">Sign in to upload scans to the cloud. Until then they're kept on this phone and will upload after you sign in.</p>
+    <input class="field" id="cloud-email" type="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Email">
+    <input class="field" id="cloud-pass" type="password" autocomplete="current-password" placeholder="Password">
+    <div class="cloud-err" id="cloud-err"></div>
+    <div class="btns"><button class="btn primary full" data-act="cloud-signin">Sign in</button></div>
+    <button class="linkbtn" data-act="cloud-reset">Forgot password?</button>`;
+  const statusText = {synced: 'All synced', waiting: 'Waiting to upload', syncing: 'Syncing…', offline: 'Offline — will upload when back online', error: 'Problem: ' + (C.error || 'unknown')}[C.status] || C.status;
+  return `<h2>Cloud sync</h2>
+    <dl class="kv"><dt>Account</dt><dd>${esc(C.user.email || '')}</dd>
+      <dt>Status</dt><dd style="color:${C.status === 'error' ? 'var(--err)' : C.status === 'synced' ? 'var(--ok)' : 'inherit'}">${esc(statusText)}</dd>
+      <dt>Waiting</dt><dd>${C.pending} change${C.pending === 1 ? '' : 's'}</dd>
+      <dt>Last sync</dt><dd>${C.lastSync ? esc(fmt(C.lastSync.toISOString())) : 'Not yet'}</dd></dl>
+    <div class="btns"><button class="btn primary" data-act="cloud-sync">Sync now</button><button class="btn" data-act="cloud-signout">Sign out</button></div>`;
+}
+function authMessage(err) {
+  const c = (err && err.code) || '';
+  if (/invalid-credential|wrong-password|user-not-found|invalid-email|invalid-login/.test(c)) return 'Wrong email or password.';
+  if (/too-many-requests/.test(c)) return 'Too many attempts — wait a few minutes and try again.';
+  if (/network-request-failed/.test(c) || !navigator.onLine) return 'No internet connection.';
+  if (/user-disabled/.test(c)) return 'This account is disabled.';
+  return (err && err.message) || String(err);
+}
+
+/* ---------------- tabs + focus ---------------- */
+function showTab(t) {
+  S.tab = t;
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + t));
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  rerender();
+  window.scrollTo(0, 0);
+  setTimeout(refocus, 0);
+}
+function rerender() {
+  if (S.tab === 'scan') renderScan();
+  else if (S.tab === 'packages') renderPackages();
+  else if (S.tab === 'settings') renderSettings();
+  else if (S.tab === 'search') doSearch();
+}
+
+const scanInput = $('#scan-input');
+const TEXTY = /^(text|search|email|number|tel|url|password)$/i;
+function otherFieldActive() {   // a real text field (search box, manual entry) has focus — leave it alone
+  const a = document.activeElement;
+  if (!a || a === scanInput) return false;
+  return (a.tagName === 'INPUT' && TEXTY.test(a.type || 'text')) || a.tagName === 'TEXTAREA' || a.isContentEditable;
+}
+const gateUp = () => !$('#gate').classList.contains('hide');
+function hideGate() { if (gateUp()) { unlockAudio(); $('#gate').classList.add('hide'); } }
+let kbuf = '', kbufAt = 0;
+function refocus() {
+  if (gateUp() || otherFieldActive()) return;
+  if (document.activeElement !== scanInput) {
+    // keep any half-typed scan that was being collected at document level
+    if (kbuf && Date.now() - kbufAt < 400) { scanInput.value = kbuf + scanInput.value; }
+    kbuf = '';
+    try { scanInput.focus({preventScroll: true}); } catch (e) { scanInput.focus(); }
+  }
+}
+function submitScanInput() { const v = scanInput.value; scanInput.value = ''; onScan(v); }
+// If the iPhone's hardware-keyboard input method is Chinese/Japanese, Enter first ends the IME composition;
+// wait for compositionend before reading the field so the scan isn't cut short.
+let enterDuringIme = false;
+scanInput.addEventListener('keydown', e => {
+  unlockAudio();
+  if (e.key === 'Enter' || e.keyCode === 13) {
+    if (e.isComposing || e.keyCode === 229) { enterDuringIme = true; return; }
+    e.preventDefault(); submitScanInput();
+  }
+});
+scanInput.addEventListener('compositionend', () => {
+  if (enterDuringIme) { enterDuringIme = false; setTimeout(submitScanInput, 0); }
+});
+scanInput.addEventListener('blur', () => setTimeout(refocus, 60));
+// Fallback: if focus was lost anyway (or the start screen is still up), collect scanner keystrokes at document level.
+document.addEventListener('keydown', e => {
+  if (e.target === scanInput || otherFieldActive()) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  hideGate();   // a scan dismisses the start screen
+  if (e.key === 'Enter') { if (kbuf) { e.preventDefault(); const v = kbuf; kbuf = ''; onScan(v); } return; }
+  if (e.key && e.key.length === 1) {
+    const now = Date.now(); if (now - kbufAt > 1500) kbuf = ''; kbufAt = now; kbuf += e.key; e.preventDefault();
+  }
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { unlockAudio(); setTimeout(refocus, 100); } });
+window.addEventListener('focus', () => setTimeout(refocus, 100));
+
+/* ---------------- clicks ---------------- */
+document.addEventListener('click', e => {
+  unlockAudio();
+  const tab = e.target.closest('[data-tab]');
+  if (tab) { if (tab.dataset.tab === 'packages' && S.tab === 'packages') S.detail = null; showTab(tab.dataset.tab); return; }
+  const c = e.target.closest('[data-cmd]');
+  if (c) { onScan(c.dataset.cmd); return; }
+  const a = e.target.closest('[data-act]');
+  if (!a) { setTimeout(refocus, 0); return; }
+  const act = a.dataset.act, id = a.dataset.id;
+  switch (act) {
+    case 'type':
+      showModal({tone: 'info', title: 'Type a code',
+        body: `<p class="note">Enter what the scanner would have read (tracking, ASIN, serial, or a CMD: code).</p>`,
+        input: {placeholder: S.state === 'WAITING_FOR_TRACKING' ? 'Tracking number' : S.state === 'WAITING_FOR_ASIN' ? 'ASIN' : 'Serial number', submit: v => onScan(v)},
+        buttons: [{label: 'Submit', cls: 'primary', fn: v => processScan(v)}, {label: 'Cancel', cls: 'ghost'}]});
+      break;
+    case 'addmore': S.state = S.pendingAsin ? 'WAITING_FOR_SERIAL' : 'WAITING_FOR_ASIN'; renderScan(); break;
+    case 'del': enqueue(() => deleteItem(id)); break;
+    case 'open-pkg': S.detail = id; showTab('packages'); break;
+    case 'back': S.detail = null; renderPackages(); break;
+    case 'resume': enqueue(() => resumePackage(id)); break;
+    case 'filter': S.pf = a.dataset.f; renderPackages(); break;
+    case 'print': buildPrintSheet(); window.print(); break;
+    case 'export-csv': enqueue(exportCSV); break;
+    case 'export-json': enqueue(exportJSON); break;
+    case 'import-json': $('#import-file').click(); break;
+    case 'clear-all': eraseAll(); break;
+    case 'cloud-signin': {
+      const em = ($('#cloud-email') || {}).value || '', pw = ($('#cloud-pass') || {}).value || '';
+      const out = $('#cloud-err');
+      if (!em || !pw) { if (out) out.textContent = 'Enter email and password.'; break; }
+      a.disabled = true; a.textContent = 'Signing in…';
+      Cloud.signIn(em, pw).then(() => { document.activeElement && document.activeElement.blur(); renderSettings(); })
+        .catch(err => { a.disabled = false; a.textContent = 'Sign in'; if ($('#cloud-err')) $('#cloud-err').textContent = authMessage(err); });
+      break;
+    }
+    case 'cloud-reset': {
+      const em = ($('#cloud-email') || {}).value || '';
+      if (!em) { if ($('#cloud-err')) $('#cloud-err').textContent = 'Type your email first, then tap “Forgot password?”.'; break; }
+      Cloud.resetPassword(em).then(() => { if ($('#cloud-err')) $('#cloud-err').textContent = 'Password reset email sent.'; })
+        .catch(err => { if ($('#cloud-err')) $('#cloud-err').textContent = authMessage(err); });
+      break;
+    }
+    case 'cloud-sync': Cloud.sync({pull: true}).then(renderSettings); break;
+    case 'cloud-signout':
+      showModal({tone: 'info', title: 'Sign out of cloud sync?',
+        body: `<p>Scans stay on this phone and keep working offline.${Cloud.pending ? ` <b>${Cloud.pending} change(s)</b> will upload after you sign in again.` : ''}</p>`,
+        buttons: [{label: 'Sign out', cls: 'primary', fn: async () => { await Cloud.signOut(); renderSettings(); }}, {label: 'Cancel', cls: 'ghost'}]});
+      break;
+  }
+});
+document.addEventListener('change', e => {
+  const p = e.target.closest('[data-pref]');
+  if (p) { prefs[p.dataset.pref] = p.checked; savePrefs(); }
+});
+$('#import-file').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  enqueue(async () => {
+    try {
+      const r = await importJSON(f);
+      showModal({tone: 'info', title: 'Backup restored',
+        body: `<p>${plural(r.np, 'package')} and ${plural(r.ni, 'item')} added or updated.</p>${r.skipped ? `<p class="note">${plural(r.skipped, 'entry')} skipped (already removed here, duplicate serial, or invalid).</p>` : ''}`,
+        buttons: [{label: 'OK', cls: 'primary', fn: renderSettings}]});
+    } catch (err) { showModal({tone: 'err', title: 'Could not restore', body: `<p>${esc(err.message || err)}</p>`, buttons: [{label: 'OK', cls: 'primary'}]}); }
+  });
+});
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.keyCode === 13) && e.target && (e.target.id === 'cloud-pass' || e.target.id === 'cloud-email')) {
+    e.preventDefault(); const b = $('[data-act="cloud-signin"]'); if (b) b.click();
+  }
+});
+$('#search-form').addEventListener('submit', e => { e.preventDefault(); $('#q').blur(); doSearch(); });
+let sT = null;
+$('#q').addEventListener('input', () => { clearTimeout(sT); sT = setTimeout(doSearch, 250); });
+
+$('#gate-btn').addEventListener('click', () => { hideGate(); refocus(); });
+
+/* ---------------- boot ---------------- */
+(async () => {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  if (!('indexedDB' in window)) { $('#v-scan').innerHTML = '<p class="empty">This browser cannot store data (private mode?). Open in normal Safari.</p>'; return; }
+  // Restore through the scan queue so a scan that arrives during start-up waits for the open package.
+  await enqueue(async () => { await restoreSession(); renderScan(); await refreshCounts(); });
+  Cloud.refreshPending();
+  Cloud.load().catch(() => {});   // loads Firebase in the background; scanning never waits for it
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('/trade/sw.js', {scope: '/trade/'}).catch(() => {});
+  // test hook (harmless in production)
+  window.__scanStation = {S, onScan, DB, code128svg, exportCSV, exportJSON, importJSON, Cloud};
+})();
+})();
+</script>
+</body>
+</html>

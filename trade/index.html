@@ -205,7 +205,7 @@ nav.tabs button.on{color:var(--ink);box-shadow:inset 0 3px 0 var(--clay)}
 #print-sheet{display:none}
 @media print{
   @page{margin:12mm}
-  body{background:#fff;padding:0}
+  html,body{background:#fff !important;padding:0}
   body > *:not(#print-sheet){display:none !important}
   #print-sheet{display:block;color:#000;font-family:-apple-system,Helvetica,Arial,sans-serif}
   #print-sheet h1{font-size:20pt;margin:0 0 2mm}
@@ -667,11 +667,18 @@ const isAsin = v => /^[A-Z0-9]{10}$/.test(v);
 const looksLikeAsin = v => /^B0[A-Z0-9]{8}$/.test(v);
 function looksLikeTracking(v) {
   const t = normTracking(v);
-  return /^1Z[0-9A-Z]{16}$/.test(t) || /^TBA\d{9,15}$/.test(t) || /^9[2-5]\d{18,20}$/.test(t);
+  return /^1Z[0-9A-Z]{16}$/.test(t)          // UPS
+      || /^TBA\d{9,15}$/.test(t)             // Amazon Logistics
+      || /^9[2-5]\d{18,20}$/.test(t)          // USPS
+      || /^1LS[A-Z0-9]{10,20}$/.test(t)       // OnTrac (former LaserShip format, e.g. 1LSCXLNA06448221)
+      || /^[CD]\d{14}$/.test(t);              // OnTrac classic (C/D + 14 digits)
 }
+// Shipping labels also carry 2D codes (DataMatrix / MaxiCode) full of routing data — not the tracking number.
+const looksLike2D = t => t.startsWith('[)>') || t.length > 40;
 function carrierOf(t) {
   if (/^1Z/.test(t)) return 'UPS';
   if (/^TBA/.test(t)) return 'Amazon Logistics';
+  if (/^1LS[A-Z0-9]{10,20}$/.test(t) || /^[CD]\d{14}$/.test(t)) return 'OnTrac';
   if (/^\d{20,22}$/.test(t)) return 'USPS (possible)';
   if (/^\d{12,15}$/.test(t)) return 'FedEx (possible)';
   return '';
@@ -776,6 +783,14 @@ async function processScan(raw) {
 
 async function scanTracking(v, opt = {}) {
   const t = normTracking(v);
+  if (!opt.force && looksLike2D(t)) {
+    feedback('warn');
+    return ask({title: 'This looks like a 2D code',
+      body: `<p>That's a square code on the label (${t.length} characters), not the tracking number.</p><p><b>Scan the long striped barcode</b> with the tracking number printed under it.</p>`,
+      rescan: v.toUpperCase(), confirmLabel: 'Use it anyway',
+      hint: 'Scan the striped tracking barcode. (Scanning this same code again uses it anyway.)',
+      onConfirm: () => scanTracking(v, {force: true})});
+  }
   if (!opt.force && looksLikeAsin(t)) {
     feedback('warn');
     return ask({title: 'This looks like an ASIN',
@@ -879,6 +894,14 @@ async function scanAsin(v, opt = {}) {
 
 async function scanSerial(v, opt = {}) {
   const serial = v;  // stored exactly as scanned (after trimming)
+  if (!opt.force && looksLike2D(serial.toUpperCase())) {
+    feedback('warn');
+    return ask({title: 'This looks like a 2D label code',
+      body: `<p>Received ${serial.length} characters — much longer than a serial number. It's probably a square code on a shipping label.</p><p>Scan the product's <b>serial number</b> barcode.</p>`,
+      rescan: v.toUpperCase(), confirmLabel: 'Save as serial anyway',
+      hint: 'Scanning this same code again saves it anyway.',
+      onConfirm: () => scanSerial(v, {force: true})});
+  }
   if (!opt.force && looksLikeTracking(serial)) return askNewPackage(v, 'serial');
   if (serial.toUpperCase() === S.pendingAsin)
     return reject(`That's the ASIN again — scan the serial number, or NO SERIAL.`, serial);

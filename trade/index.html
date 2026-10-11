@@ -204,16 +204,16 @@ nav.tabs button.on{color:var(--ink);box-shadow:inset 0 3px 0 var(--clay)}
 /* printable control sheet */
 #print-sheet{display:none}
 @media print{
-  @page{margin:12mm}
+  @page{margin:10mm}
   html,body{background:#fff !important;padding:0}
   body > *:not(#print-sheet){display:none !important}
   #print-sheet{display:block;color:#000;font-family:-apple-system,Helvetica,Arial,sans-serif}
   #print-sheet h1{font-size:20pt;margin:0 0 2mm}
-  #print-sheet p{margin:0 0 6mm;font-size:10pt}
-  .ps-grid{display:grid;grid-template-columns:1fr 1fr;gap:8mm}
-  .ps{border:0.4mm solid #000;border-radius:3mm;padding:5mm;text-align:center;break-inside:avoid}
-  .ps b{display:block;font-size:20pt;letter-spacing:.04em;margin-bottom:3mm}
-  .ps svg{width:100%;height:22mm;display:block}
+  #print-sheet p{margin:0 0 4mm;font-size:10pt}
+  .ps-grid{display:grid;grid-template-columns:1fr 1fr;gap:5mm}
+  .ps{border:0.4mm solid #000;border-radius:3mm;padding:4mm 5mm 3mm;text-align:center;break-inside:avoid}
+  .ps b{display:block;font-size:18pt;letter-spacing:.04em;margin-bottom:2mm}
+  .ps svg{width:100%;height:20mm;display:block}
   .ps span{display:block;font-family:Menlo,Consolas,monospace;font-size:10pt;margin-top:2mm}
 }
 </style>
@@ -239,7 +239,7 @@ nav.tabs button.on{color:var(--ink);box-shadow:inset 0 3px 0 var(--clay)}
   <section class="view" id="v-packages"></section>
   <section class="view" id="v-search">
     <form class="sbox" id="search-form" autocomplete="off">
-      <input id="q" type="search" placeholder="Tracking / ASIN / Serial" autocapitalize="characters" autocorrect="off" spellcheck="false">
+      <input id="q" type="search" placeholder="Tracking / UPC / Serial" autocapitalize="characters" autocorrect="off" spellcheck="false">
       <button class="btn primary" type="submit">Go</button>
     </form>
     <p class="hint">Scan into this page or type. Exact matches first, then partial matches.</p>
@@ -664,6 +664,40 @@ function normTracking(v) {
   return t;
 }
 const isAsin = v => /^[A-Z0-9]{10}$/.test(v);
+// ---- Product barcodes. (Internally the item field is still called "asin"; on screen it's the product UPC.)
+function gs1Valid(d) {   // GS1 check digit (UPC / EAN / GTIN)
+  let sum = 0;
+  for (let i = d.length - 2, w = 3; i >= 0; i--, w = 4 - w) sum += (+d[i]) * w;
+  return (10 - (sum % 10)) % 10 === +d[d.length - 1];
+}
+function upcEtoA(e) {    // 8-digit UPC-E → 12-digit UPC-A
+  const ns = e[0], d = e.slice(1, 7), c = e[7], x = d[5];
+  const m = x <= '2' ? d[0] + d[1] + x + '0000' + d[2] + d[3] + d[4]
+          : x === '3' ? d[0] + d[1] + d[2] + '00000' + d[3] + d[4]
+          : x === '4' ? d[0] + d[1] + d[2] + d[3] + '00000' + d[4]
+          : d[0] + d[1] + d[2] + d[3] + d[4] + '0000' + x;
+  return ns + m + c;
+}
+/** Classify a product barcode → {code, type, ok, why}. UPC-A is stored as 12 digits whichever way the scanner sends it. */
+function productCode(raw) {
+  let v = String(raw).replace(/\s+/g, '').toUpperCase();
+  if (/^\d+$/.test(v)) {
+    if (v.length === 14 && v.startsWith('00')) v = v.slice(2);     // GTIN-14 wrapping a UPC
+    if (v.length === 13 && v.startsWith('0')) v = v.slice(1);      // UPC sent as EAN-13
+    const bad = t => ({code: v, type: t, ok: false, why: "check digit doesn't match (mis-scan, or not a product barcode)"});
+    if (v.length === 12) return gs1Valid(v) ? {code: v, type: 'UPC', ok: true} : bad('UPC');
+    if (v.length === 13) return gs1Valid(v) ? {code: v, type: 'EAN', ok: true} : bad('EAN');
+    if (v.length === 14) return gs1Valid(v) ? {code: v, type: 'GTIN-14', ok: true} : bad('GTIN-14');
+    if (v.length === 8) {
+      if ((v[0] === '0' || v[0] === '1') && gs1Valid(upcEtoA(v))) return {code: upcEtoA(v), type: 'UPC', ok: true};
+      return gs1Valid(v) ? {code: v, type: 'EAN-8', ok: true} : bad('EAN-8');
+    }
+    return {code: v, type: null, ok: false, why: v.length === 11 ? '11 digits — the scanner may be dropping the UPC check digit' : `${v.length} digits — a UPC has 12`};
+  }
+  if (/^X00[A-Z0-9]{7}$/.test(v)) return {code: v, type: 'FNSKU', ok: true};
+  if (/^B0[A-Z0-9]{8}$/.test(v)) return {code: v, type: 'ASIN', ok: true};
+  return {code: v, type: null, ok: false, why: 'not a UPC / EAN barcode'};
+}
 const looksLikeAsin = v => /^B0[A-Z0-9]{8}$/.test(v);
 function looksLikeTracking(v) {
   const t = normTracking(v);
@@ -791,10 +825,10 @@ async function scanTracking(v, opt = {}) {
       hint: 'Scan the striped tracking barcode. (Scanning this same code again uses it anyway.)',
       onConfirm: () => scanTracking(v, {force: true})});
   }
-  if (!opt.force && looksLikeAsin(t)) {
+  if (!opt.force && productCode(t).ok && !looksLikeTracking(t)) {
     feedback('warn');
-    return ask({title: 'This looks like an ASIN',
-      body: `<p>Waiting for a <b>tracking number</b>, but received:</p><p class="big2">${esc(t)}</p>`,
+    return ask({title: 'This looks like a product UPC',
+      body: `<p>Waiting for a <b>tracking number</b> (or a receipt barcode), but received a product barcode:</p><p class="big2">${esc(t)}</p><p class="note">No shipping label? Scan the receipt barcode, or scan <b>IN STORE</b>.</p>`,
       rescan: v.toUpperCase(), confirmLabel: 'Use as tracking',
       hint: 'Scan it again to use it as the tracking number anyway.',
       onConfirm: () => scanTracking(v, {force: true})});
@@ -805,7 +839,7 @@ async function scanTracking(v, opt = {}) {
       feedback('warn');
       return ask({title: 'This is a recorded serial number',
         body: `<p>Waiting for a <b>tracking number</b>, but this code is already saved as a serial:</p><p class="big2">${esc(v)}</p>
-          <dl><dt>ASIN</dt><dd>${esc(asSerial.asin)}</dd><dt>Package</dt><dd>${esc(asSerial.tracking_number)}</dd></dl>`,
+          <dl><dt>UPC</dt><dd>${esc(asSerial.asin)}</dd><dt>Package</dt><dd>${esc(asSerial.tracking_number)}</dd></dl>`,
         rescan: v.toUpperCase(), confirmLabel: 'Use as tracking',
         hint: 'Scan it again to use it as a tracking number anyway.',
         onConfirm: () => scanTracking(v, {force: true})});
@@ -826,7 +860,7 @@ async function scanTracking(v, opt = {}) {
   const now = nowISO();
   let created = false;
   if (!p) {
-    p = {id: uid('pkg'), tracking_number: t, carrier: carrierOf(t), status: 'OPEN',
+    p = {id: uid('pkg'), tracking_number: t, carrier: opt.carrier || carrierOf(t), status: 'OPEN',
          created_at: now, updated_at: now, finished_at: null, device_id: deviceId};
     await DB.put('packages', p); created = true;
   } else if (p.status !== 'OPEN') {
@@ -851,44 +885,45 @@ function askNewPackage(v, as) {
   feedback('warn');
   ask({title: 'Possible new tracking number',
     body: `<p>Scanned:</p><p class="big2">${esc(t)}</p><dl><dt>Current package</dt><dd>${esc(S.pkg.tracking_number)}</dd></dl>
-      ${S.pendingAsin ? `<p>ASIN <b>${esc(S.pendingAsin)}</b> has no serial yet and will be discarded.</p>` : ''}`,
+      ${S.pendingAsin ? `<p>UPC <b>${esc(S.pendingAsin)}</b> has no serial yet and will be discarded.</p>` : ''}`,
     rescan: v.toUpperCase(), confirmLabel: 'Start new package',
     hint: 'Scan it again to start the new package (current one stays open). Scan anything else to stay.',
     // scanTracking switches packages only once the new one is actually open
     // (if it turns out to be a finished package and you cancel, you stay where you were).
     onConfirm: () => scanTracking(v, {force: true}),
-    extra: [{label: as === 'serial' ? 'Save as serial' : 'Use as ASIN', cls: '',
+    extra: [{label: as === 'serial' ? 'Save as serial' : 'Use as UPC', cls: '',
       fn: () => as === 'serial' ? scanSerial(v, {force: true}) : scanAsin(v, {force: true})}]});
 }
 
 async function scanAsin(v, opt = {}) {
-  const a = v.replace(/\s+/g, '').toUpperCase();
+  const pc = productCode(v), a = pc.code;
   if (!opt.force && looksLikeTracking(a)) return askNewPackage(v, 'asin');
   if (!opt.force) {
-    // A serial scanned twice must not become the next ASIN (it would shift every later item by one).
-    if (S.lastSaved && S.lastSaved.serial != null && serialKey(S.lastSaved.serial) === a)
-      return reject(`That's the serial you just saved for ${S.lastSaved.asin}. Scan the next product's ASIN.`, v);
-    const asSerial = (await findSerial(a))[0];
+    // A serial scanned twice must not become the next product code (it would shift every later item by one).
+    const raw = v.replace(/\s+/g, '').toUpperCase();
+    if (S.lastSaved && S.lastSaved.serial != null && [a, raw].includes(serialKey(S.lastSaved.serial)))
+      return reject(`That's the serial you just saved for ${S.lastSaved.asin}. Scan the next product's UPC.`, v);
+    const asSerial = (await findSerial(raw))[0] || (await findSerial(a))[0];
     if (asSerial) {
       feedback('warn');
       return ask({title: 'This is a recorded serial number',
-        body: `<p>Waiting for an <b>ASIN</b>, but this code is already saved as a serial:</p><p class="big2">${esc(v)}</p>
-          <dl><dt>ASIN</dt><dd>${esc(asSerial.asin)}</dd><dt>Package</dt><dd>${esc(asSerial.tracking_number)}</dd></dl>`,
-        rescan: v.toUpperCase(), confirmLabel: 'Use as ASIN',
-        hint: 'Scan it again to use it as an ASIN anyway, or scan the product ASIN.',
+        body: `<p>Waiting for a <b>UPC</b>, but this code is already saved as a serial:</p><p class="big2">${esc(v)}</p>
+          <dl><dt>UPC</dt><dd>${esc(asSerial.asin)}</dd><dt>Package</dt><dd>${esc(asSerial.tracking_number)}</dd></dl>`,
+        rescan: v.toUpperCase(), confirmLabel: 'Use as UPC',
+        hint: 'Scan it again to use it as the product code anyway, or scan the product UPC.',
         onConfirm: () => scanAsin(v, {force: true})});
     }
   }
-  if (!opt.force && !isAsin(a)) {
+  if (!opt.force && !pc.ok) {
     feedback('warn');
-    return ask({title: "Doesn't look like an ASIN",
-      body: `<p>Expected a 10-character ASIN. Received ${a.length} characters:</p><p class="big2">${esc(a)}</p>`,
+    return ask({title: "Doesn't look like a UPC",
+      body: `<p>Expected the product's UPC barcode (12 digits). Received:</p><p class="big2">${esc(a)}</p><p class="note">${esc(pc.why)}</p>`,
       rescan: v.toUpperCase(), confirmLabel: 'Use it anyway',
-      hint: 'Scan it again to use it anyway, or scan the correct ASIN.',
+      hint: 'Scan it again to use it anyway, or scan the product UPC.',
       onConfirm: () => scanAsin(v, {force: true})});
   }
   S.pendingAsin = a; S.state = 'WAITING_FOR_SERIAL';
-  logEvent('ASIN_SCAN', v, 'PENDING', {asin: a});
+  logEvent('UPC_SCAN', v, 'PENDING', {asin: a, code_type: pc.type || 'OTHER'});
   saveSession(); feedback('tick'); S.flash = null; renderScan();
 }
 
@@ -903,13 +938,13 @@ async function scanSerial(v, opt = {}) {
       onConfirm: () => scanSerial(v, {force: true})});
   }
   if (!opt.force && looksLikeTracking(serial)) return askNewPackage(v, 'serial');
-  if (serial.toUpperCase() === S.pendingAsin)
-    return reject(`That's the ASIN again — scan the serial number, or NO SERIAL.`, serial);
-  if (!opt.force && looksLikeAsin(serial.toUpperCase())) {
-    // Most likely the last item had no serial and this is already the next product's ASIN.
+  if (serial.toUpperCase() === S.pendingAsin || productCode(serial).code === S.pendingAsin)
+    return reject(`That's the UPC again — scan the serial number, or NO SERIAL.`, serial);
+  if (!opt.force && productCode(serial).ok) {
+    // Most likely the last item had no serial and this is already the next product's UPC.
     const pa = S.pendingAsin;
     feedback('warn');
-    return ask({title: 'This looks like an ASIN',
+    return ask({title: 'This looks like a product UPC',
       body: `<p>Waiting for the <b>serial</b> of <b>${esc(pa)}</b>, but received:</p><p class="big2">${esc(serial)}</p>
         <p>Did <b>${esc(pa)}</b> have no serial number?</p>`,
       rescan: v.toUpperCase(), confirmLabel: 'Save as serial',
@@ -935,8 +970,8 @@ function showDuplicate(serial, d, dp) {
   renderScan();
   showModal({tone: 'err', title: '⚠ DUPLICATE SERIAL',
     body: `<p class="big2">${esc(serial)}</p><p class="label" style="margin-top:12px">Already scanned under</p>
-      <dl><dt>Tracking</dt><dd>${esc(dp ? dp.tracking_number : '(package deleted)')}</dd><dt>ASIN</dt><dd>${esc(d.asin)}</dd><dt>Received</dt><dd>${esc(fmt(d.created_at))}</dd></dl>
-      <p><b>Not saved.</b> ASIN ${esc(S.pendingAsin)} is still waiting for its serial.</p>`,
+      <dl><dt>Tracking</dt><dd>${esc(dp ? dp.tracking_number : '(package deleted)')}</dd><dt>UPC</dt><dd>${esc(d.asin)}</dd><dt>Received</dt><dd>${esc(fmt(d.created_at))}</dd></dl>
+      <p><b>Not saved.</b> UPC ${esc(S.pendingAsin)} is still waiting for its serial.</p>`,
     hint: 'Scan the correct serial to continue. Only use “Save anyway” if this really is a second unit with the same serial.',
     buttons: [{label: 'OK', cls: 'primary', fn: () => { S.flash = null; renderScan(); }},
               {label: 'Save anyway', cls: 'danger', fn: () => addItem(S.pendingAsin, serial, {override: true})}]});
@@ -946,7 +981,7 @@ function showDuplicate(serial, d, dp) {
 async function addItem(asin, serial, {override = false, via = null} = {}) {
   if (!S.pkg || !asin) return;
   const it = {id: uid('itm'), package_id: S.pkg.id, tracking_number: S.pkg.tracking_number,
-    identifier_type: isAsin(asin) ? 'ASIN' : 'OTHER', asin, serial: serial ?? null, serial_norm: serialKey(serial), quantity: 1,
+    identifier_type: productCode(asin).type || 'OTHER', asin, serial: serial ?? null, serial_norm: serialKey(serial), quantity: 1,
     created_at: nowISO(), device_id: deviceId};
   if (override) it.duplicate_override = true;
   await DB.put('items', it);
@@ -974,14 +1009,17 @@ async function command(cmd) {
   switch (cmd) {
     case 'CMD:NO_SERIAL':
       if (!S.pkg) return reject('Scan a tracking number first.', cmd);
-      if (!S.pendingAsin) return reject('NO SERIAL needs an ASIN first — scan the product ASIN.', cmd);
+      if (!S.pendingAsin) return reject('NO SERIAL needs a product first — scan the product UPC.', cmd);
       return addItem(S.pendingAsin, null, {via: cmd});
     case 'CMD:NEXT_ASIN':
+    case 'CMD:NEXT_UPC':
     case 'CMD:CANCEL_ASIN':
       if (!S.pkg) return reject('No package open — scan a tracking number.', cmd);
-      if (S.pendingAsin) { const a = S.pendingAsin; discardPending(); feedback('tick'); return flash('warn', 'ASIN DISCARDED', [a, 'Nothing saved'], 1000); }
+      if (S.pendingAsin) { const a = S.pendingAsin; discardPending(); feedback('tick'); return flash('warn', 'UPC DISCARDED', [a, 'Nothing saved'], 1000); }
       S.state = 'WAITING_FOR_ASIN'; feedback('tick'); return renderScan();
     case 'CMD:NEW_PACKAGE': return newPackage();
+    case 'CMD:IN_STORE':
+    case 'CMD:INSTORE':     return inStore();
     case 'CMD:UNDO':        return undoLast();
     case 'CMD:FINISH':      return finishPackage();
     case 'CMD:REVIEW':
@@ -995,7 +1033,7 @@ async function command(cmd) {
 function newPackage(confirmed) {
   if (S.pendingAsin && !confirmed) {
     feedback('warn');
-    return ask({title: 'ASIN still waiting for a serial',
+    return ask({title: 'UPC still waiting for a serial',
       body: `<p class="big2">${esc(S.pendingAsin)}</p><p>Starting a new package will discard it (nothing saved for it).</p>`,
       rescan: 'CMD:NEW_PACKAGE', confirmLabel: 'Discard & new package',
       hint: 'Scan NEW PACKAGE again to confirm — or scan the serial / NO SERIAL first.',
@@ -1009,6 +1047,23 @@ function newPackage(confirmed) {
     had ? [`${had.tracking_number} left OPEN · ${plural(n, 'item')}`, 'Finish it later from Packages'] : [], 1400);
 }
 
+/** Store purchase with no shipping label (and no receipt barcode): open a package named after the date and time. */
+async function inStore(confirmed) {
+  if (S.pendingAsin && !confirmed) {
+    feedback('warn');
+    return ask({title: 'UPC still waiting for a serial',
+      body: `<p class="big2">${esc(S.pendingAsin)}</p><p>Starting an in-store package will discard it (nothing saved for it).</p>`,
+      rescan: 'CMD:IN_STORE', confirmLabel: 'Discard & start in-store',
+      hint: 'Scan IN STORE again to confirm — or scan the serial / NO SERIAL first.',
+      onConfirm: () => inStore(true)});
+  }
+  const d = new Date();
+  let id = `INSTORE-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  if ((await DB.by('packages', 'tracking', id)).length) id += pad(d.getSeconds());
+  if ((await DB.by('packages', 'tracking', id)).length) id += '-' + Math.random().toString(36).slice(2, 5).toUpperCase();
+  await scanTracking(id, {force: true, carrier: 'In-store'});
+}
+
 async function undoLast(confirmed) {
   if (!S.pkg) return reject('Nothing to undo — no package open.', 'CMD:UNDO');
   const last = S.items[S.items.length - 1];
@@ -1016,7 +1071,7 @@ async function undoLast(confirmed) {
   if (!confirmed && !prefs.fastUndo) {
     feedback('warn');
     return ask({title: 'Undo last item?',
-      body: `<dl><dt>ASIN</dt><dd>${esc(last.asin)}</dd><dt>Serial</dt><dd>${esc(last.serial ?? 'NO SERIAL')}</dd></dl>`,
+      body: `<dl><dt>UPC</dt><dd>${esc(last.asin)}</dd><dt>Serial</dt><dd>${esc(last.serial ?? 'NO SERIAL')}</dd></dl>`,
       rescan: 'CMD:UNDO', confirmLabel: 'Undo item',
       hint: 'Scan UNDO again to confirm. Scanning anything else cancels.',
       onConfirm: () => undoLast(true)});
@@ -1033,9 +1088,9 @@ async function finishPackage(confirmed) {
   if (!S.pkg) return reject('No package open — scan a tracking number first.', 'CMD:FINISH');
   if (S.pendingAsin && !confirmed) {
     feedback('warn');
-    return ask({title: 'ASIN still waiting for a serial',
+    return ask({title: 'UPC still waiting for a serial',
       body: `<p class="big2">${esc(S.pendingAsin)}</p><p>Finishing now will discard it (nothing saved for it).</p>`,
-      rescan: 'CMD:FINISH', confirmLabel: 'Discard ASIN & finish',
+      rescan: 'CMD:FINISH', confirmLabel: 'Discard UPC & finish',
       hint: 'Scan FINISH again to confirm — or scan the serial / NO SERIAL first.',
       onConfirm: () => finishPackage(true)});
   }
@@ -1055,7 +1110,7 @@ async function deleteItem(id) {
   const it = await DB.get('items', id);
   if (!it) return;
   showModal({tone: 'err', title: 'Delete this item?',
-    body: `<dl><dt>Tracking</dt><dd>${esc(it.tracking_number)}</dd><dt>ASIN</dt><dd>${esc(it.asin)}</dd><dt>Serial</dt><dd>${esc(it.serial ?? 'NO SERIAL')}</dd></dl>`,
+    body: `<dl><dt>Tracking</dt><dd>${esc(it.tracking_number)}</dd><dt>UPC</dt><dd>${esc(it.asin)}</dd><dt>Serial</dt><dd>${esc(it.serial ?? 'NO SERIAL')}</dd></dl>`,
     hint: 'The deletion is kept in the audit log.',
     buttons: [{label: 'Delete item', cls: 'danger solid', fn: async () => {
         await DB.del('items', id); S.itemCount = Math.max(0, (S.itemCount || 1) - 1);
@@ -1083,7 +1138,7 @@ async function resumePackage(id) {
   S.detail = null; saveSession();
   showTab('scan');
   flash(dropped ? 'warn' : 'ok', 'PACKAGE RESUMED',
-    [p.tracking_number, plural(S.items.length, 'item'), dropped ? `ASIN ${dropped} from the previous package had no serial — discarded` : ''], dropped ? 2500 : 900);
+    [p.tracking_number, plural(S.items.length, 'item'), dropped ? `UPC ${dropped} from the previous package had no serial — discarded` : ''], dropped ? 2500 : 900);
 }
 
 /* ---------------- rendering: SCAN ---------------- */
@@ -1119,29 +1174,30 @@ function renderScan() {
     : `<div class="pkg none"><div><div class="label">Package</div><div>No package open</div>${S.lastFinished ? `<div class="carrier">Last finished: <span class="mono">${esc(S.lastFinished.tracking)}</span> · ${plural(S.lastFinished.n, 'item')}</div>` : ''}</div></div>${backupHint()}`;
 
   let cls, inner;
-  const nextWord = S.state === 'WAITING_FOR_TRACKING' ? 'TRACKING NUMBER' : S.state === 'WAITING_FOR_ASIN' ? 'ASIN' : 'SERIAL';
+  const nextWord = S.state === 'WAITING_FOR_TRACKING' ? 'TRACKING NUMBER' : S.state === 'WAITING_FOR_ASIN' ? 'UPC' : 'SERIAL';
   if (S.flash) {
     cls = S.flash.tone;
     inner = `<div class="big">${esc(S.flash.title)}</div>${S.flash.lines.map((l, i) => `<div class="fl ${i === 0 && S.flash.tone !== 'err' ? 'mono' : ''}">${esc(l)}</div>`).join('')}
       ${S.flash.tone !== 'ok' ? `<div class="next">Next: scan ${nextWord}${S.pendingAsin ? ` for ${esc(S.pendingAsin)}` : ''}</div>` : ''}`;
   } else if (S.state === 'WAITING_FOR_TRACKING') {
-    cls = 's-trk'; inner = `<div class="sub">Step 1</div><div class="big">SCAN TRACKING NUMBER</div>`;
+    cls = 's-trk'; inner = `<div class="sub">Step 1</div><div class="big">SCAN TRACKING NUMBER</div><div class="or">store purchase: scan the receipt barcode, or IN STORE</div>`;
   } else if (S.state === 'WAITING_FOR_ASIN') {
-    cls = 's-asin'; inner = `<div class="sub">Next item</div><div class="big">SCAN ASIN</div>`;
+    cls = 's-asin'; inner = `<div class="sub">Next item</div><div class="big">SCAN UPC</div>`;
   } else {
-    cls = 's-serial'; inner = `<div class="sub">Current ASIN</div><div class="asin">${esc(S.pendingAsin)}</div><div class="big">SCAN SERIAL</div><div class="or">or scan NO SERIAL · NEXT ASIN · UNDO · NEW PACKAGE</div>`;
+    cls = 's-serial'; inner = `<div class="sub">Current UPC</div><div class="asin">${esc(S.pendingAsin)}</div><div class="big">SCAN SERIAL</div><div class="or">or scan NO SERIAL · NEXT UPC · UNDO · NEW PACKAGE</div>`;
   }
 
   let btns = '';
   if (S.state === 'WAITING_FOR_SERIAL') {
     btns = `<button class="btn serial full" data-cmd="CMD:NO_SERIAL">No serial</button>
-            <button class="btn full" data-cmd="CMD:NEXT_ASIN">Cancel ASIN</button>`;
+            <button class="btn full" data-cmd="CMD:NEXT_ASIN">Cancel UPC</button>`;
   } else if (S.state === 'WAITING_FOR_ASIN') {
     btns = `<button class="btn" data-cmd="CMD:REVIEW">Review</button>
             <button class="btn primary" data-cmd="CMD:FINISH">Finish</button>
             <button class="btn ghost" data-cmd="CMD:UNDO">Undo last</button>
             <button class="btn ghost" data-cmd="CMD:NEW_PACKAGE">New package</button>`;
   }
+  if (S.state === 'WAITING_FOR_TRACKING') btns += `<button class="btn full" data-cmd="CMD:IN_STORE">In-store purchase (no label)</button>`;
   btns += `<button class="btn ghost full" data-act="type">⌨ Type a code</button>`;
 
   const last = S.lastSaved
@@ -1171,7 +1227,7 @@ function detailHTML(p, items, ctx) {
     <div class="meta"><span class="badge ${esc(p.status)}">${esc(p.status)}</span> ${p.carrier ? '· ' + esc(p.carrier) : ''}<br>
       Opened ${esc(fmt(p.created_at))}${p.finished_at ? ` · Finished ${esc(fmt(p.finished_at))}` : ''}</div>
     <div class="total"><span class="label">Total items</span><b>${totalQty(items)}</b></div>
-    <div class="label">ASIN summary · ${groups.length} ASIN${groups.length === 1 ? '' : 's'} · ${ser} serialized</div>
+    <div class="label">UPC summary · ${groups.length} UPC${groups.length === 1 ? '' : 's'} · ${ser} serialized</div>
     ${groups.map(g => `<details class="grp"><summary><span class="a">${esc(g.asin)}</span><span class="q"><b>Qty ${g.qty}</b><br>Serialized ${g.ser}</span></summary>
       <ul>${g.items.map(it => `<li><span class="s">${it.serial != null ? esc(it.serial) : '<span class="ns">no serial</span>'}</span><span class="t">${esc(fmtTime(it.created_at))}</span><button class="x" data-act="del" data-id="${esc(it.id)}">Delete</button></li>`).join('')}</ul></details>`).join('')
       || '<p class="empty">No items yet.</p>'}
@@ -1221,7 +1277,8 @@ async function doSearch() {
   const pById = new Map(pk.map(p => [p.id, p]));
   let ser = items.filter(i => i.serial != null && i.serial.toUpperCase() === Q);
   let pks = pk.filter(p => p.tracking_number === T);
-  let asins = items.filter(i => i.asin === Q);
+  const PQ = productCode(q).code;
+  let asins = items.filter(i => i.asin === Q || i.asin === PQ);
   let partial = false;
   if (!ser.length && !pks.length && !asins.length && Q.length >= 3) {
     partial = true;
@@ -1234,7 +1291,7 @@ async function doSearch() {
   if (partial && (ser.length || pks.length || asins.length)) html += `<p class="hint">No exact match — showing partial matches for “${esc(q)}”.</p>`;
   if (ser.length) {
     html += `<h3 class="sec">Serial number</h3>` + ser.slice(0, 50).map(i => `<div class="res"><dl>
-      <dt>Serial</dt><dd>${esc(i.serial)}</dd><dt>ASIN</dt><dd>${esc(i.asin)}</dd>
+      <dt>Serial</dt><dd>${esc(i.serial)}</dd><dt>UPC</dt><dd>${esc(i.asin)}</dd>
       <dt>Tracking</dt><dd>${pkgLink(pById.get(i.package_id))}</dd><dt>Received</dt><dd>${esc(fmt(i.created_at))}</dd></dl></div>`).join('');
   }
   if (pks.length) {
@@ -1247,11 +1304,11 @@ async function doSearch() {
   if (asins.length) {
     const byAsin = new Map();
     for (const i of asins) { if (!byAsin.has(i.asin)) byAsin.set(i.asin, []); byAsin.get(i.asin).push(i); }
-    html += `<h3 class="sec">ASIN</h3>`;
+    html += `<h3 class="sec">UPC</h3>`;
     for (const [a, its] of [...byAsin].slice(0, 20)) {
       const perPkg = new Map();
       for (const i of its) perPkg.set(i.package_id, (perPkg.get(i.package_id) || 0) + qty(i));
-      html += `<div class="res"><dl><dt>ASIN</dt><dd>${esc(a)}</dd><dt>Total</dt><dd>${totalQty(its)}</dd></dl>
+      html += `<div class="res"><dl><dt>UPC</dt><dd>${esc(a)}</dd><dt>Total</dt><dd>${totalQty(its)}</dd></dl>
         <div class="label" style="margin-top:8px">Found in packages</div><div class="lines">${[...perPkg].map(([pid, n]) => {
           const p = pById.get(pid); return `${pkgLink(p)} × ${n}${p ? ` <span class="ns">${esc(fmt(p.created_at))}</span>` : ''}`; }).join('<br>')}</div></div>`;
     }
@@ -1272,7 +1329,7 @@ function code128svg(text) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${x + quiet} 60" preserveAspectRatio="none" shape-rendering="crispEdges" role="img" aria-label="${esc(text)}"><rect width="${x + quiet}" height="60" fill="#fff"/><g fill="#000">${rects}</g></svg>`;
 }
 const CONTROLS = [
-  ['NO SERIAL', 'CMD:NO_SERIAL'], ['NEXT ASIN', 'CMD:NEXT_ASIN'], ['NEW PACKAGE', 'CMD:NEW_PACKAGE'],
+  ['NO SERIAL', 'CMD:NO_SERIAL'], ['NEXT UPC', 'CMD:NEXT_ASIN'], ['NEW PACKAGE', 'CMD:NEW_PACKAGE'], ['IN STORE', 'CMD:IN_STORE'],
   ['UNDO LAST', 'CMD:UNDO'], ['FINISH PACKAGE', 'CMD:FINISH'], ['REVIEW PACKAGE', 'CMD:REVIEW'],
 ];
 function buildPrintSheet() {
@@ -1287,7 +1344,7 @@ function scannerTest(v) {
   const up = v.toUpperCase();
   const kind = up.startsWith('CMD:') ? (CONTROLS.some(c => c[1] === up) ? 'Control barcode' : 'Unknown control barcode')
     : looksLikeTracking(v) ? `Tracking number${carrierOf(normTracking(v)) ? ' · ' + carrierOf(normTracking(v)) : ''}`
-    : isAsin(up) ? 'Looks like an ASIN (10 chars)' : `${v.length} characters`;
+    : productCode(v).ok ? `Product barcode · ${productCode(v).type} ${productCode(v).code}` : `${v.length} characters`;
   lastTest = {v, kind: nonAscii(v) ? 'Non-English characters — set the iPhone hardware keyboard to English (US)' : kind, at: new Date()};
   feedback('test');   // different sound from "saved": nothing is recorded on this screen
   const box = $('#test-box');
@@ -1307,7 +1364,7 @@ async function renderSettings() {
   $('#v-settings').innerHTML = `
   <div class="card" id="cloud-card" data-key="${esc(cloudKey())}">${cloudCardHTML()}</div>
   <div class="card"><h2>Scanner setup</h2>
-    <dl class="kv"><dt>Scanner mode</dt><dd>HID Keyboard</dd><dt>Suffix</dt><dd>Enter</dd><dt>Prefix</dt><dd>None</dd><dt>Keyboard</dt><dd>US English</dd></dl>
+    <dl class="kv"><dt>Scanner mode</dt><dd>HID Keyboard</dd><dt>Suffix</dt><dd>Enter</dd><dt>Prefix</dt><dd>None</dd><dt>Keyboard</dt><dd>US English</dd><dt>UPC check digit</dt><dd>Transmit</dd></dl>
     <p class="note" style="margin-top:8px">iPhone: Settings → General → Keyboard → <b>Hardware Keyboard</b> → set to <b>English (US)</b>. A Chinese input method there can garble scans.</p>
     <div class="test ${lastTest ? 'ok' : ''}" id="test-box">${testBoxHTML()}</div>
     <p class="note" style="margin-top:10px">Pair the scanner with the iPhone in Bluetooth settings. While a Bluetooth scanner is connected, iOS hides the on-screen keyboard — that's expected. If scans stop registering, tap anywhere on the page once.</p>
@@ -1366,14 +1423,14 @@ async function exportCSV() {
   const [pk, items] = await Promise.all([DB.all('packages'), DB.all('items')]);
   const pById = new Map(pk.map(p => [p.id, p]));
   items.sort((a, b) => a.created_at < b.created_at ? -1 : 1);
-  const rows = [['tracking_number', 'carrier', 'package_status', 'asin', 'serial', 'quantity', 'received_at', 'package_opened_at', 'package_finished_at', 'duplicate_override']];
-  const ID_COLS = new Set([0, 3, 4]);   // tracking, asin, serial
+  const rows = [['tracking_number', 'carrier', 'package_status', 'upc', 'code_type', 'serial', 'quantity', 'received_at', 'package_opened_at', 'package_finished_at', 'duplicate_override']];
+  const ID_COLS = new Set([0, 3, 5]);   // tracking, upc, serial
   for (const i of items) {
     const p = pById.get(i.package_id) || {};
-    rows.push([p.tracking_number || i.tracking_number, p.carrier, p.status, i.asin, i.serial, qty(i), fmt(i.created_at), fmt(p.created_at), fmt(p.finished_at), i.duplicate_override ? 'yes' : '']);
+    rows.push([p.tracking_number || i.tracking_number, p.carrier, p.status, i.asin, i.identifier_type || '', i.serial, qty(i), fmt(i.created_at), fmt(p.created_at), fmt(p.finished_at), i.duplicate_override ? 'yes' : '']);
   }
   for (const p of pk) if (!items.some(i => i.package_id === p.id))
-    rows.push([p.tracking_number, p.carrier, p.status, '', '', 0, '', fmt(p.created_at), fmt(p.finished_at), '']);
+    rows.push([p.tracking_number, p.carrier, p.status, '', '', '', 0, '', fmt(p.created_at), fmt(p.finished_at), '']);
   const csv = '﻿' + rows.map((r, ri) => r.map((c, ci) => csvCell(c, ri > 0 && ID_COLS.has(ci))).join(',')).join('\r\n');
   if (await download(`scan-station-${stamp()}.csv`, csv, 'text/csv')) { noteBackup(items.length); logEvent('EXPORT', null, 'CSV', {items: items.length}); }
 }
@@ -1407,7 +1464,7 @@ async function importJSON(file) {
     if (serial != null && (await findSerial(serial)).length) { skipped++; continue; }   // would be a duplicate serial
     const pkgId = idMap.get(i.package_id), pkg = await DB.get('packages', pkgId);
     await DB.put('items', {id: i.id, package_id: pkgId, tracking_number: pkg ? pkg.tracking_number : String(i.tracking_number || ''),
-      identifier_type: i.identifier_type === 'OTHER' ? 'OTHER' : 'ASIN', asin: String(i.asin).toUpperCase(), serial, serial_norm: serialKey(serial),
+      identifier_type: productCode(String(i.asin)).type || 'OTHER', asin: String(i.asin).toUpperCase(), serial, serial_norm: serialKey(serial),
       quantity: Math.max(1, parseInt(i.quantity, 10) || 1), created_at: String(i.created_at || nowISO()), device_id: String(i.device_id || ''),
       ...(i.duplicate_override ? {duplicate_override: true} : {})});
     ni++;
@@ -1539,8 +1596,8 @@ document.addEventListener('click', e => {
   switch (act) {
     case 'type':
       showModal({tone: 'info', title: 'Type a code',
-        body: `<p class="note">Enter what the scanner would have read (tracking, ASIN, serial, or a CMD: code).</p>`,
-        input: {placeholder: S.state === 'WAITING_FOR_TRACKING' ? 'Tracking number' : S.state === 'WAITING_FOR_ASIN' ? 'ASIN' : 'Serial number', submit: v => onScan(v)},
+        body: `<p class="note">Enter what the scanner would have read (tracking, UPC, serial, or a CMD: code).</p>`,
+        input: {placeholder: S.state === 'WAITING_FOR_TRACKING' ? 'Tracking number' : S.state === 'WAITING_FOR_ASIN' ? 'UPC' : 'Serial number', submit: v => onScan(v)},
         buttons: [{label: 'Submit', cls: 'primary', fn: v => processScan(v)}, {label: 'Cancel', cls: 'ghost'}]});
       break;
     case 'addmore': S.state = S.pendingAsin ? 'WAITING_FOR_SERIAL' : 'WAITING_FOR_ASIN'; renderScan(); break;

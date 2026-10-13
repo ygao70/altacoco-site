@@ -765,6 +765,7 @@ function closeModal() {
 }
 /** Confirmation that the scanner can answer: scan the same code again = yes; scan anything else = no (and that scan is processed). */
 function ask({tone = 'warn', title, body, rescan, confirmLabel, cancelLabel = 'Cancel', hint, onConfirm, extra = []}) {
+  logEvent('PROMPT', S.lastRaw ?? null, title);
   if (S.flash && S.flash.tone !== 'err') { S.flash = null; clearTimeout(flashTimer); }
   renderScan();
   showModal({tone, title, body, hint,
@@ -789,6 +790,9 @@ function onScan(raw) { enqueue(() => processScan(raw)); }
 async function processScan(raw) {
   const v = clean(raw);
   if (!v) return;
+  S.lastRaw = v;
+  // Diagnostics: every scan that reaches the page is logged with where it landed.
+  logEvent('SCAN_IN', v, `${S.tab}/${S.state}`, {length: v.length});
   if (S.tab === 'settings') return scannerTest(v);
   if (S.tab === 'search') { $('#q').value = v; return doSearch(); }
   if (S.tab !== 'scan') showTab('scan');
@@ -966,6 +970,7 @@ async function scanSerial(v, opt = {}) {
 }
 
 function showDuplicate(serial, d, dp) {
+  logEvent('PROMPT', serial, 'DUPLICATE SERIAL');
   S.flash = {tone: 'err', title: '⚠ DUPLICATE SERIAL', lines: [serial, 'Not saved']};
   renderScan();
   showModal({tone: 'err', title: '⚠ DUPLICATE SERIAL',
@@ -1565,6 +1570,15 @@ scanInput.addEventListener('keydown', e => {
     if (e.isComposing || e.keyCode === 229) { enterDuringIme = true; return; }
     e.preventDefault(); submitScanInput();
   }
+});
+let imeWarned = false;
+scanInput.addEventListener('compositionstart', () => {
+  if (imeWarned) return;
+  imeWarned = true;
+  logEvent('IME', null, 'COMPOSITION_STARTED');
+  feedback('warn');
+  flash('warn', 'KEYBOARD IS NOT ENGLISH', ['The iPhone keyboard is in a Chinese/Japanese input mode, so letters from the scanner get swallowed.',
+    'Press Ctrl+Space (or the 🌐 key) to switch to English — or set Settings → General → Keyboard → Hardware Keyboard to English (US).']);
 });
 scanInput.addEventListener('compositionend', () => {
   if (enterDuringIme) { enterDuringIme = false; setTimeout(submitScanInput, 0); }
